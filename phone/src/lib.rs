@@ -5,6 +5,7 @@ use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use web_sys::*;
 mod controls;
+mod latency;
 mod midi_file;
 mod photo_geometry;
 mod k2_bridge;
@@ -174,6 +175,8 @@ struct App {
     outputs: Vec<JsValue>,
     output_index: Option<usize>,
     input_handlers: Vec<(JsValue, Closure<dyn FnMut(JsValue)>)>,
+    mic_request: bool,
+    testing: bool,
 }
 thread_local! {static APP:RefCell<Option<App>>=const{RefCell::new(None)};}
 fn send(message: &JsValue) {
@@ -206,6 +209,9 @@ fn button(index: u8, pressed: bool) {
 fn lift() {
     APP.with(|s| {
         if let Some(a) = s.borrow_mut().as_mut() {
+            if a.testing {
+                return;
+            }
             a.lifted = !a.lifted;
             let m = object("handset");
             set(&m, "value", a.lifted);
@@ -268,6 +274,7 @@ fn enable() {
         "midi",
         "tone",
         "midi-file",
+        "latency-test",
     ] {
         let _ = el(id).remove_attribute("disabled");
     }
@@ -367,6 +374,7 @@ fn power_off() {
         "midi-file",
         "file-play",
         "file-stop",
+        "latency-test",
     ] {
         let _ = el(id).set_attribute("disabled", "");
     }
@@ -389,6 +397,7 @@ fn power_off() {
     let tone: HtmlInputElement = el("tone").unchecked_into();
     tone.set_checked(false);
     text("microphone", "MIC");
+    text("mic-device", "");
     text("status", "Off.");
     text("performance", "Phone off.");
     text(
@@ -481,6 +490,20 @@ async fn power() -> Result<(), JsValue> {
                 }
             }
             Some("midi_out") => midi_output(&Uint8Array::new(&get(&d, "bytes"))),
+            Some("latency_status") => {
+                APP.with(|s| {
+                    if let Some(a) = s.borrow_mut().as_mut() {
+                        a.testing = false;
+                    }
+                });
+                text(
+                    "latency-status",
+                    &get(&d, "text").as_string().unwrap_or_default(),
+                );
+                for id in ["latency-test", "microphone", "handset", "tone"] {
+                    let _ = el(id).remove_attribute("disabled");
+                }
+            }
             Some("shutdown") => {
                 save_flash(&Uint8Array::new(&get(&d, "bytes")));
                 power_off();
@@ -504,6 +527,8 @@ async fn power() -> Result<(), JsValue> {
             outputs: vec![],
             output_index: None,
             input_handlers: vec![],
+            mic_request: false,
+            testing: false,
         })
     });
     let _ = sample_rate;
@@ -525,24 +550,69 @@ async fn microphone() -> Result<(), JsValue> {
             }
         });
         text("microphone", "MIC");
+        text("mic-device", "");
         return Ok(());
     }
+    let pending = APP.with(|s| {
+        let mut s = s.borrow_mut();
+        let a = s.as_mut().unwrap();
+        let pending = a.mic_request;
+        a.mic_request = true;
+        pending
+    });
+    if pending {
+        return Ok(());
+    }
+    text("microphone", "ALLOW MIC…");
+    text("mic-device", "Allow microphone access in your browser.");
     let options = MediaStreamConstraints::new();
     let audio = Object::new();
     for key in ["echoCancellation", "noiseSuppression", "autoGainControl"] {
         set(&audio, key, false);
     }
+    let hint = Object::new();
+    set(&hint, "ideal", 0.);
+    set(&audio, "latency", hint);
+    let mono = Object::new();
+    set(&mono, "ideal", 1.);
+    set(&audio, "channelCount", mono);
     options.set_audio(&audio);
     options.set_video(&JsValue::FALSE);
-    let stream: MediaStream = JsFuture::from(
+    let result = JsFuture::from(
         window()
             .unwrap()
             .navigator()
             .media_devices()?
             .get_user_media_with_constraints(&options)?,
     )
-    .await?
-    .dyn_into()?;
+    .await;
+    APP.with(|s| {
+        if let Some(a) = s
+            .borrow_mut()
+            .as_mut()
+            .filter(|a| Object::is(a.context.as_ref(), context.as_ref()))
+        {
+            a.mic_request = false;
+        }
+    });
+    let stream: MediaStream = match result {
+        Ok(stream) => stream.dyn_into()?,
+        Err(error) => {
+            if APP.with(|s| {
+                s.borrow()
+                    .as_ref()
+                    .is_some_and(|a| Object::is(a.context.as_ref(), context.as_ref()))
+            }) {
+                text("microphone", "MIC");
+                text(
+                    "mic-device",
+                    "Microphone unavailable. Check browser permission and the selected input.",
+                );
+            }
+            web_sys::console::warn_1(&error);
+            return Ok(());
+        }
+    };
     let attached = APP.with(|s| -> Result<bool, JsValue> {
         let mut s = s.borrow_mut();
         let Some(a) = s
@@ -563,7 +633,35 @@ async fn microphone() -> Result<(), JsValue> {
         return attached.map(|_| ());
     }
     text("microphone", "MIC ON");
+    if let Some(track) = stream.get_audio_tracks().iter().next() {
+        let label = get(&track, "label").as_string().unwrap_or_default();
+        text(
+            "mic-device",
+            &format!("Input: {label}. Browser latency hints are not a measurement."),
+        );
+    }
     Ok(())
+}
+fn measure_latency() {
+    let ready = APP.with(|s| {
+        s.borrow()
+            .as_ref()
+            .is_some_and(|a| a.stream.is_some() && !a.lifted && a.tone.is_none())
+    });
+    if !ready {
+        text("latency-status", "Enable the live mic, replace the receiver and turn Test voice off. Use speakers for this test.");
+        return;
+    }
+    APP.with(|s| {
+        if let Some(a) = s.borrow_mut().as_mut() {
+            a.testing = true;
+        }
+    });
+    for id in ["latency-test", "microphone", "handset", "tone"] {
+        let _ = el(id).set_attribute("disabled", "");
+    }
+    text("latency-status", "Measuring… Keep quiet for four seconds.");
+    send(&object("latency_start"));
 }
 fn midi_route(data: &JsValue) {
     let bytes = Uint8Array::new(&get(data, "data"));
@@ -866,6 +964,7 @@ pub fn start() {
             }
         })
     });
+    bind(el("latency-test").as_ref(), "click", |_| measure_latency());
     bind(el("tone").as_ref(), "change", |_| {
         let input: HtmlInputElement = el("tone").unchecked_into();
         let checked = input.checked();
@@ -987,6 +1086,8 @@ struct Machine {
     output: Vec<f32>,
     audio_port: Option<MessagePort>,
     tick_pending: bool,
+    probe: Option<Vec<f32>>,
+    lifted: bool,
 }
 fn queue_tick(machine: &mut Machine, port: &MessagePort) {
     if !machine.tick_pending && !machine.failed {
@@ -1004,6 +1105,33 @@ fn receive_mic(machine: &mut Machine, data: &JsValue) {
     ));
     while machine.input.len() > 8192 {
         machine.input.pop_front();
+    }
+}
+fn latency_status(scope: &DedicatedWorkerGlobalScope, message: &str) {
+    let data = object("latency_status");
+    set(&data, "text", message);
+    post(scope, &data);
+}
+fn finish_measurement(machine: &mut Machine, data: &JsValue, scope: &DedicatedWorkerGlobalScope) {
+    let Some(reference) = machine.probe.take() else {
+        return;
+    };
+    // The receiver was down before the test. Restore the real hook input before
+    // releasing the worklet's output mute; never monitor a speaker/mic loop.
+    let _ = machine.cpu.handset(false);
+    if let Some(port) = &machine.audio_port {
+        let done = Object::new();
+        set(&done, "testFinished", true);
+        let _ = port.post_message(&done);
+    }
+    let mic = Float32Array::new(&get(data, "micRecording")).to_vec();
+    let processed = Float32Array::new(&get(data, "processedRecording")).to_vec();
+    match latency::measure(&reference, &mic, &processed, machine.rate,
+        get(data, "underruns").as_f64().unwrap_or(1.) as u32) {
+        Ok(result) => latency_status(scope, &format!(
+            "Measured ≈{:.1} ms mic → speaker, including the air path. Device loop {:.1} ms + app/firmware {:.1} ms. Five probes; spread {:.1} ms; match {:.0}%. This measures the current effect only.",
+            result.total_ms(), result.device_ms, result.processing_ms, result.spread_ms, result.confidence*100.)),
+        Err(error) => latency_status(scope, error),
     }
 }
 fn start_capture(port: &MessagePort) -> Result<(), JsValue> {
@@ -1209,6 +1337,8 @@ pub async fn start_worker() -> Result<(), JsValue> {
         output: Vec::new(),
         audio_port: None,
         tick_pending: false,
+        probe: None,
+        lifted: false,
     }));
     let channel = MessageChannel::new()?;
     let port = channel.port2();
@@ -1225,13 +1355,19 @@ pub async fn start_worker() -> Result<(), JsValue> {
                 let audio_port: MessagePort = get(&d, "port").dyn_into()?;
                 let state = s.clone();
                 let wake = wakeup.clone();
+                let measurement_scope = scope_error.clone();
                 bind(audio_port.as_ref(), "message", move |event| {
                     let event: MessageEvent = event.unchecked_into();
                     let mut machine = state.borrow_mut();
                     if machine.failed {
                         return;
                     }
-                    receive_mic(&mut machine, &event.data());
+                    let data = event.data();
+                    if get(&data, "latencyResult").is_truthy() {
+                        finish_measurement(&mut machine, &data, &measurement_scope);
+                    } else {
+                        receive_mic(&mut machine, &data);
+                    }
                     queue_tick(&mut machine, &wake);
                 });
                 audio_port.start();
@@ -1355,7 +1491,35 @@ pub async fn start_worker() -> Result<(), JsValue> {
                 m.switches[12].set(value.is_truthy(), now);
                 Ok(())
             }
-            Some("handset") => m.cpu.handset(value.is_truthy()),
+            Some("latency_start") => (|| -> Result<(), JsValue> {
+                if m.probe.is_some() {
+                    return Ok(());
+                }
+                if m.lifted || m.song_playing || m.cpu.virtual_time_ns() < 1_000_000_000 {
+                    latency_status(&scope_error, "Let the phone finish starting, stop MIDI playback and replace the receiver before measuring.");
+                    return Ok(());
+                }
+                let probe = latency::probe(m.rate);
+                m.cpu.handset(true)?;
+                let message = Object::new();
+                let audio = Float32Array::from(probe.as_slice());
+                let transfer = Array::of1(audio.buffer().as_ref());
+                set(&message, "probe", audio);
+                m.audio_port
+                    .as_ref()
+                    .ok_or("Audio port unavailable")?
+                    .post_message_with_transferable(&message, &transfer)?;
+                m.probe = Some(probe);
+                Ok(())
+            })(),
+            Some("handset") => {
+                if m.probe.is_some() {
+                    Ok(())
+                } else {
+                    m.lifted = value.is_truthy();
+                    m.cpu.handset(m.lifted)
+                }
+            }
             Some("gain") => m.cpu.mic_gain(value.as_f64().unwrap_or(1.) as f32),
             Some("midi") => m.cpu.midi(&Uint8Array::new(&get(&d, "bytes"))),
             _ => Ok(()),

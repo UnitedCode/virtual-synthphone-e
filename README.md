@@ -16,6 +16,12 @@ and power on the phone. Channel 2 plays the synth, channel 1 controls vocals,
 and channel 10 plays drums. The phone's controls and microphone remain available.
 The connection needs no virtual MIDI driver or Web MIDI permission.
 
+**Mic delay:** in **I/O**, enable the live mic, keep the receiver down and choose
+**Measure mic delay**. Use speakers in a quiet room. Five quiet probes measure
+the physical speaker/mic loop and the current firmware effect separately.
+Start with Dry. Effects that change the probe too much return an inconclusive
+result. Recordings stay in memory; they are never uploaded or saved.
+
 The Rust WebAssembly backend boots the real ARM firmware. Its UI, OLED, synth,
 vocal effects and saved settings run on that CPU. The photo layers preserve the
 actual instrument; see [asset provenance](phone/assets/README.md).
