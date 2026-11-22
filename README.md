@@ -10,6 +10,12 @@ Power on, enable the microphone, then pick up the receiver. Play the photographe
 keys and drag the real side dials. MIDI files and MIDI input/output are in the
 small toolbar; keyboard shortcuts are under **?**.
 
+To play the phone from K2's keyboard or MIDI player, open the
+[K2 + Synthphone paired view](https://nathansbradshaw.github.io/k2-midi-viewer/?duet=1)
+and power on the phone. Channel 2 plays the synth, channel 1 controls vocals,
+and channel 10 plays drums. The phone's controls and microphone remain available.
+The connection needs no virtual MIDI driver or Web MIDI permission.
+
 The Rust WebAssembly backend boots the real ARM firmware. Its UI, OLED, synth,
 vocal effects and saved settings run on that CPU. The photo layers preserve the
 actual instrument; see [asset provenance](phone/assets/README.md).

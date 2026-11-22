@@ -7,6 +7,7 @@ use web_sys::*;
 mod controls;
 mod midi_file;
 mod photo_geometry;
+mod k2_bridge;
 mod resample;
 
 #[wasm_bindgen(raw_module = "./engine.js")]
@@ -705,6 +706,7 @@ pub fn start() {
         return;
     }
     photo_geometry::align_controls(&doc());
+    k2_bridge::install();
     bind(el("zoom").as_ref(), "click", |_| {
         let zoom = el("zoom").get_attribute("aria-pressed").as_deref() != Some("true");
         let _ = el("workbench")
