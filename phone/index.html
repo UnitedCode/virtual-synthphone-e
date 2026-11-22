@@ -24,6 +24,9 @@
         <label>Output<select id="midi-out"><option value="">None</option></select></label>
         <label class="check"><input id="thru" type="checkbox"> MIDI thru</label>
         <label class="check"><input id="tone" type="checkbox" disabled> Test voice · 220 Hz</label>
+        <button id="latency-test" disabled>Measure mic delay</button>
+        <p id="latency-status" role="status">Speakers + live mic required. Keep the receiver down. Plays five quiet probes; audio stays local. Use Dry for the baseline.</p>
+        <p id="mic-device"></p>
         <p id="file-status">Drop a .mid file here.</p>
         <p id="midi-status" role="status"></p>
       </div>
