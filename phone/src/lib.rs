@@ -5,11 +5,12 @@ use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use web_sys::*;
 mod controls;
+mod k2_bridge;
 mod latency;
 mod midi_file;
 mod photo_geometry;
-mod k2_bridge;
 mod resample;
+mod streaming;
 
 #[wasm_bindgen(raw_module = "./engine.js")]
 extern "C" {
@@ -164,6 +165,7 @@ fn bind_dial(id: &'static str, encoder: bool) {
         });
     }
 }
+type MidiInputHandler = (JsValue, Closure<dyn FnMut(JsValue)>);
 struct App {
     worker: Worker,
     context: AudioContext,
@@ -174,7 +176,7 @@ struct App {
     midi: JsValue,
     outputs: Vec<JsValue>,
     output_index: Option<usize>,
-    input_handlers: Vec<(JsValue, Closure<dyn FnMut(JsValue)>)>,
+    input_handlers: Vec<MidiInputHandler>,
     mic_request: bool,
     testing: bool,
 }
@@ -416,17 +418,23 @@ async fn power() -> Result<(), JsValue> {
     options.set_latency_hint(&"interactive".into());
     let context = AudioContext::new_with_context_options(&options)?;
     JsFuture::from(context.resume()?).await?;
-    JsFuture::from(context.audio_worklet()?.add_module("audio-worklet.js")?).await?;
+    let worklet_url = el("runtime")
+        .get_attribute("data-worklet")
+        .ok_or("Missing audio runtime")?;
+    JsFuture::from(context.audio_worklet()?.add_module(&worklet_url)?).await?;
     let node = AudioWorkletNode::new(&context, "firmware-audio")?;
     node.connect_with_audio_node(&context.destination())?;
     let options = WorkerOptions::new();
     options.set_type(WorkerType::Module);
-    let worker = Worker::new_with_options("worker.js", &options)?;
+    let worker_url = el("runtime")
+        .get_attribute("data-worker")
+        .ok_or("Missing worker runtime")?;
+    let worker = Worker::new_with_options(&worker_url, &options)?;
     bind(worker.as_ref(), "message", move |e| {
         let e: MessageEvent = e.unchecked_into();
         let d = e.data();
         match get(&d, "kind").as_string().as_deref() {
-            Some("ready") => {
+            Some("connect") => {
                 let connected = APP.with(|s| -> Result<(), JsValue> {
                     let s = s.borrow();
                     let a = s.as_ref().ok_or("Phone was powered off")?;
@@ -441,8 +449,11 @@ async fn power() -> Result<(), JsValue> {
                     report(error);
                     return;
                 }
-                enable();
                 configuration();
+                text("status", "Starting the firmware…");
+            }
+            Some("ready") => {
+                enable();
                 text("status", "Ready.");
             }
             Some("screen") => screen(&get(&d, "bytes").unchecked_into()),
@@ -660,7 +671,7 @@ fn measure_latency() {
     for id in ["latency-test", "microphone", "handset", "tone"] {
         let _ = el(id).set_attribute("disabled", "");
     }
-    text("latency-status", "Measuring… Keep quiet for four seconds.");
+    text("latency-status", "Measuring… Keep quiet for seven seconds.");
     send(&object("latency_start"));
 }
 fn midi_route(data: &JsValue) {
@@ -1074,10 +1085,16 @@ struct Machine {
     start: f64,
     last_ui: f64,
     underruns: f64,
+    queued_frames: f64,
+    resyncs: f64,
+    capture_age_ms: f64,
+    input_drops: u64,
+    probe_input_drops: u64,
     failed: bool,
     switches: [controls::Switch; 13],
     peak: f32,
     configured: bool,
+    booting: bool,
     flash_revision: u64,
     song: Option<midi_file::Song>,
     song_cursor: usize,
@@ -1097,6 +1114,9 @@ fn queue_tick(machine: &mut Machine, port: &MessagePort) {
 }
 fn receive_mic(machine: &mut Machine, data: &JsValue) {
     machine.underruns = get(data, "underruns").as_f64().unwrap_or(0.);
+    machine.queued_frames = get(data, "queuedFrames").as_f64().unwrap_or(0.);
+    machine.resyncs = get(data, "resyncs").as_f64().unwrap_or(0.);
+    machine.capture_age_ms = (now() - get(data, "capturedAt").as_f64().unwrap_or_else(now)).max(0.);
     let samples = Float32Array::new(&get(data, "mic")).to_vec();
     machine.input.extend(machine.input_resampler.process(
         &samples,
@@ -1105,6 +1125,7 @@ fn receive_mic(machine: &mut Machine, data: &JsValue) {
     ));
     while machine.input.len() > 8192 {
         machine.input.pop_front();
+        machine.input_drops += 1;
     }
 }
 fn latency_status(scope: &DedicatedWorkerGlobalScope, message: &str) {
@@ -1126,17 +1147,29 @@ fn finish_measurement(machine: &mut Machine, data: &JsValue, scope: &DedicatedWo
     }
     let mic = Float32Array::new(&get(data, "micRecording")).to_vec();
     let processed = Float32Array::new(&get(data, "processedRecording")).to_vec();
+    let dropped = u32::from(machine.input_drops != machine.probe_input_drops);
     match latency::measure(&reference, &mic, &processed, machine.rate,
-        get(data, "underruns").as_f64().unwrap_or(1.) as u32) {
+        (get(data, "underruns").as_f64().unwrap_or(1.) as u32).saturating_add(dropped)) {
         Ok(result) => latency_status(scope, &format!(
             "Measured ≈{:.1} ms mic → speaker, including the air path. Device loop {:.1} ms + app/firmware {:.1} ms. Five probes; spread {:.1} ms; match {:.0}%. This measures the current effect only.",
             result.total_ms(), result.device_ms, result.processing_ms, result.spread_ms, result.confidence*100.)),
         Err(error) => latency_status(scope, error),
     }
 }
-fn start_capture(port: &MessagePort) -> Result<(), JsValue> {
+fn start_capture(port: &MessagePort, rate: f64) -> Result<(), JsValue> {
     let start = Object::new();
     set(&start, "start", true);
+    set(
+        &start,
+        "maxQueuedFrames",
+        (rate * streaming::MAX_PLAYBACK_SECONDS).ceil(),
+    );
+    set(&start, "captureFrames", streaming::PACKET_FRAMES as u32);
+    set(
+        &start,
+        "prebufferFrames",
+        (rate * streaming::PREBUFFER_SECONDS).ceil(),
+    );
     port.post_message(&start)
 }
 fn now() -> f64 {
@@ -1178,6 +1211,26 @@ fn tick(scope: DedicatedWorkerGlobalScope, state: Rc<RefCell<Machine>>, port: Me
         if !m.configured {
             return Ok(());
         }
+        if m.booting {
+            // Boot the actual ARM image and restore settings before opening the
+            // live codec stream. Capturing during boot leaves old mic frames in
+            // the input/output FIFOs even after throughput catches up to 1×.
+            for _ in 0..4 {
+                m.cpu.run_for(100_000, 2_000_000)?;
+            }
+            m.cpu.take_audio();
+            if m.cpu.virtual_time_ns() >= streaming::BOOT_NS {
+                m.booting = false;
+                m.start = now();
+                m.source_rate = m.cpu.sample_rate();
+                start_capture(
+                    m.audio_port.as_ref().ok_or("Audio port unavailable")?,
+                    m.rate,
+                )?;
+                post(&scope, &object("ready"));
+            }
+            return Ok(());
+        }
         if m.song_playing {
             let elapsed = m.cpu.virtual_time_ns().saturating_sub(m.song_start);
             loop {
@@ -1216,7 +1269,7 @@ fn tick(scope: DedicatedWorkerGlobalScope, state: Rc<RefCell<Machine>>, port: Me
         }
         // Follow captured codec frames instead of generating future silence.
         // A bounded instruction batch cannot outrun the buffered input.
-        if m.cpu.pending_input() < 128 {
+        if (m.cpu.pending_input() as usize) < streaming::INPUT_READY {
             return Ok(());
         }
         for _ in 0..4 {
@@ -1230,10 +1283,11 @@ fn tick(scope: DedicatedWorkerGlobalScope, state: Rc<RefCell<Machine>>, port: Me
                     }
                 }
             }
-            if m.cpu.pending_input() < 128 {
+            if (m.cpu.pending_input() as usize) < streaming::INPUT_READY {
                 break;
             }
-            m.cpu.run_for(100_000, 2_000_000)?;
+            let duration = streaming::slice_ns(m.cpu.pending_input() as usize, m.source_rate);
+            m.cpu.run_for(100_000, duration)?;
         }
         let pcm = m.cpu.take_audio().to_vec();
         m.peak = pcm.iter().fold(0f32, |peak, sample| peak.max(sample.abs()));
@@ -1246,7 +1300,7 @@ fn tick(scope: DedicatedWorkerGlobalScope, state: Rc<RefCell<Machine>>, port: Me
             let (source_rate, rate) = (m.source_rate, m.rate);
             let output = m.output_resampler.process(&pcm, source_rate, rate);
             m.output.extend(output);
-            if m.output.len() >= 256 {
+            if m.output.len() >= streaming::PACKET_FRAMES {
                 let output = std::mem::take(&mut m.output);
                 let data = object("audio");
                 let audio = Float32Array::from(output.as_slice());
@@ -1279,10 +1333,15 @@ fn tick(scope: DedicatedWorkerGlobalScope, state: Rc<RefCell<Machine>>, port: Me
                     &data,
                     "text",
                     format!(
-                        "{speed:.2}× real time · {} output samples · peak {:.4} · {} underruns. {}",
+                        "{speed:.2}× throughput · capture delivery {:.0} ms · input queue {:.1} ms · playback queue {:.1} ms · {} output samples · peak {:.4} · {} underruns · {} overflow recoveries · {} input frames dropped. {}",
+                        m.capture_age_ms,
+                        (m.input.len() as f64 + f64::from(m.cpu.pending_input())) / m.source_rate * 1000.,
+                        m.queued_frames / m.rate * 1000.,
                         m.samples,
                         m.peak,
                         m.underruns,
+                        m.resyncs,
+                        m.input_drops,
                         m.cpu.stats()
                     ),
                 );
@@ -1297,15 +1356,19 @@ fn tick(scope: DedicatedWorkerGlobalScope, state: Rc<RefCell<Machine>>, port: Me
         return;
     }
     let mut m = state.borrow_mut();
-    if m.configured && (m.cpu.pending_input() >= 128 || !m.input.is_empty()) {
+    if m.configured
+        && (m.booting
+            || m.cpu.pending_input() as usize >= streaming::INPUT_READY
+            || !m.input.is_empty())
+    {
         queue_tick(&mut m, &port);
     }
 }
 #[wasm_bindgen]
-pub async fn start_worker() -> Result<(), JsValue> {
+pub async fn start_worker(firmware_url: String) -> Result<(), JsValue> {
     JsFuture::from(initialize_engine()).await?;
     let scope: DedicatedWorkerGlobalScope = js_sys::global().unchecked_into();
-    let response: Response = JsFuture::from(scope.fetch_with_str("synthphone.bin"))
+    let response: Response = JsFuture::from(scope.fetch_with_str(&firmware_url))
         .await?
         .dyn_into()?;
     if !response.ok() {
@@ -1325,10 +1388,16 @@ pub async fn start_worker() -> Result<(), JsValue> {
         start: now(),
         last_ui: 0.,
         underruns: 0.,
+        queued_frames: 0.,
+        resyncs: 0.,
+        capture_age_ms: 0.,
+        input_drops: 0,
+        probe_input_drops: 0,
         failed: false,
         switches: core::array::from_fn(|_| controls::Switch::default()),
         peak: 0.,
         configured: false,
+        booting: true,
         flash_revision: 0,
         song: None,
         song_cursor: 0,
@@ -1371,8 +1440,8 @@ pub async fn start_worker() -> Result<(), JsValue> {
                     queue_tick(&mut machine, &wake);
                 });
                 audio_port.start();
-                if m.configured {
-                    start_capture(&audio_port)?;
+                if m.configured && !m.booting {
+                    start_capture(&audio_port, m.rate)?;
                 }
                 m.audio_port = Some(audio_port);
                 Ok(())
@@ -1441,24 +1510,20 @@ pub async fn start_worker() -> Result<(), JsValue> {
                     .mic_gain(get(&d, "gain").as_f64().unwrap_or(1.) as f32);
                 if !m.configured {
                     let flash = get(&d, "flash");
-                    if !flash.is_undefined() {
-                        if m.cpu.restore_flash(&Uint8Array::new(&flash)).is_err() {
-                            let data = object("persistence");
-                            set(
-                                &data,
-                                "text",
-                                "Saved settings could not be read. The phone is using defaults.",
-                            );
-                            post(&scope_error, &data);
-                        }
+                    if !flash.is_undefined()
+                        && m.cpu.restore_flash(&Uint8Array::new(&flash)).is_err()
+                    {
+                        let data = object("persistence");
+                        set(
+                            &data,
+                            "text",
+                            "Saved settings could not be read. The phone is using defaults.",
+                        );
+                        post(&scope_error, &data);
                     }
                     m.configured = true;
                     m.start = now();
-                    if let Some(port) = &m.audio_port {
-                        start_capture(port)
-                    } else {
-                        Ok(())
-                    }
+                    Ok(())
                 } else {
                     Ok(())
                 }
@@ -1510,6 +1575,7 @@ pub async fn start_worker() -> Result<(), JsValue> {
                     .ok_or("Audio port unavailable")?
                     .post_message_with_transferable(&message, &transfer)?;
                 m.probe = Some(probe);
+                m.probe_input_drops = m.input_drops;
                 Ok(())
             })(),
             Some("handset") => {
@@ -1538,7 +1604,7 @@ pub async fn start_worker() -> Result<(), JsValue> {
         tick(sc.clone(), s.clone(), p.clone())
     });
     channel.port1().start();
-    let ready = object("ready");
+    let ready = object("connect");
     post(&scope, &ready);
     tick(scope, state, port);
     Ok(())

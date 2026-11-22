@@ -86,7 +86,14 @@ Browser slices also stop after two virtual milliseconds, keeping captured mic
 input and queued controls responsive. A finer polling schedule is checked
 against the same firmware's PCM output. A transferred message port connects the
 firmware worker directly to the audio thread; UI rendering does not relay PCM.
-Capture packets are 256 frames and playback starts with 12 ms queued.
+The ARM firmware finishes its startup before live capture opens, so old mic
+audio cannot collect during boot. Capture and output packets are 128 frames;
+playback starts with 6 ms queued. CPU slices retain a small codec input guard.
+The Engine drawer reports the input and playback queues separately from
+throughput. These queue lengths are not a substitute for acoustic measurement.
+Playback overflow above 40 ms discards stale queued PCM and reports a recovery;
+the delay test rejects any capture with dropouts or discarded audio. Runtime
+assets use content-derived filenames so browser caches cannot mix releases.
 
 Generate repeatable test input and measure the real ARM firmware in V8:
 

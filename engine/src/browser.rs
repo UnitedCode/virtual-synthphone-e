@@ -144,7 +144,8 @@ pub fn start() {
     }
     spawn_local(async {
         let result:Result<(),JsValue>=async{
-   let response: web_sys::Response=JsFuture::from(web_sys::window().unwrap().fetch_with_str("synthphone.bin")).await?.dyn_into()?;
+   let firmware_url=document().get_element_by_id("runtime").and_then(|e| e.get_attribute("data-firmware")).ok_or("Missing firmware URL")?;
+   let response: web_sys::Response=JsFuture::from(web_sys::window().unwrap().fetch_with_str(&firmware_url)).await?.dyn_into()?;
    if !response.ok(){return Err(JsValue::from_str("Firmware download failed"));}
    let image=Rc::new(js_sys::Uint8Array::new(&JsFuture::from(response.array_buffer()?).await?).to_vec());
    for (id,kind) in [("mic-test","mic"),("silence-test","silence"),("midi-test","midi")] {

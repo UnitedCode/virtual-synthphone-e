@@ -1,16 +1,17 @@
 //! Local acoustic loopback analysis. Neither browser latency hints nor engine
 //! throughput count as a measurement. All three streams share the worklet clock.
 const START: f64 = 0.3;
-const SPACING: f64 = 0.5;
+const SPACING: f64 = 0.75;
 const PULSES: usize = 5;
 const WIDTH: f64 = 0.064;
-pub const DURATION: f64 = 3.2;
+pub const DURATION: f64 = 6.4;
 
 pub fn probe(rate: f64) -> Vec<f32> {
     let mut result = vec![0.; (rate * DURATION).ceil() as usize];
     for pulse in 0..PULSES {
         let start = ((START + pulse as f64 * SPACING) * rate).round() as usize;
-        let mut random = 0x7193_abedu32;
+        // Distinct codes prevent a long delay from matching a later probe.
+        let mut random = 0x7193_abedu32 ^ (pulse as u32).wrapping_mul(0x9e37_79b9);
         let mut amplitude = 0.;
         for i in 0..(WIDTH * rate).round() as usize {
             if i % (rate * 0.004).round() as usize == 0 {
@@ -112,22 +113,27 @@ pub fn measure(
     let mic = envelope(mic, bin);
     let processed = envelope(processed, bin);
     let width = (WIDTH / seconds).round() as usize;
-    let range = (0.25 / seconds).round() as usize;
+    let device_range = (0.5 / seconds).round() as usize;
+    let processing_range = (2.5 / seconds).round() as usize;
     let mut device = Vec::new();
     let mut app = Vec::new();
     let mut confidence: f64 = 1.;
     for pulse in 0..PULSES {
         let start = ((START + pulse as f64 * SPACING) / seconds).round() as usize;
-        let (arrival, score) = locate(&reference[start..start + width], &mic, start, range)
+        let (arrival, score) = locate(&reference[start..start + width], &mic, start, device_range)
             .ok_or("No microphone probe detected.")?;
         if score < 0.7 {
             return Err(
                 "No clear speaker-to-mic signal. Use speakers, a live mic and a quiet room.",
             );
         }
-        let (render, match_score) =
-            locate(&mic[arrival..arrival + width], &processed, arrival, range)
-                .ok_or("No firmware output detected.")?;
+        let (render, match_score) = locate(
+            &mic[arrival..arrival + width],
+            &processed,
+            arrival,
+            processing_range,
+        )
+        .ok_or("No firmware output detected.")?;
         if match_score < 0.7 {
             return Err("Firmware output did not match. Try Dry mode with the mic level up and MIDI stopped.");
         }
@@ -191,5 +197,14 @@ mod tests {
         processed[72000..].copy_from_slice(&tail[72000..]);
         assert!(measure(&reference, &mic, &processed, 48000., 0).is_err());
         assert!(measure(&reference, &mic, &vec![0.; mic.len()], 48000., 0).is_err());
+    }
+    #[test]
+    fn measures_two_second_backlog_without_aliasing_later_probes() {
+        let reference = probe(48000.);
+        let mic = delayed(&reference, 1104, 0.3);
+        let processed = delayed(&mic, 97512, 0.5);
+        let result = measure(&reference, &mic, &processed, 48000., 0).unwrap();
+        assert!((result.device_ms - 23.).abs() < 0.6);
+        assert!((result.processing_ms - 2031.5).abs() < 0.6, "{result:?}");
     }
 }
