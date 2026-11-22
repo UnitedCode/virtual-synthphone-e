@@ -1,0 +1,6 @@
+[package]
+name="virtual-synthphone-e-site"
+version="0.1.0"
+edition="2021"
+publish=false
+[workspace]

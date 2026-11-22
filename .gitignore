@@ -1,11 +1,6 @@
 /target/
 /dist/
 /results/
-/bridge/bin/
-/bridge/obj/
+**/target/
 .DS_Store
 *.wav
-/web/engine/dist/
-/web/engine/target/
-/web/cpu/target/
-/web/site-builder/target/

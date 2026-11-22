@@ -1,0 +1,43 @@
+[package]
+name = "virtual-synthphone-e-engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[features]
+default=["lab"]
+lab=[]
+profile=[]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[example]]
+name="profile"
+required-features=["profile"]
+
+[[example]]
+name="realtime"
+required-features=["profile"]
+
+[dependencies]
+virtual-daisy = { git = "https://github.com/UnitedCode/virtual-daisy.git", rev = "323c4c77a1210600425f767673d1d9309b7d26f4" }
+zmu_cortex_m = { git = "https://github.com/UnitedCode/virtual-daisy.git", rev = "323c4c77a1210600425f767673d1d9309b7d26f4", default-features = false, features = ["armv7em", "fpv5-d16"] }
+wasm-bindgen = "=0.2.127"
+sha2 = "0.10.9"
+
+[build-dependencies]
+zmu_cortex_m = { git="https://github.com/UnitedCode/virtual-daisy.git", rev="323c4c77a1210600425f767673d1d9309b7d26f4", default-features=false, features=["armv7em","fpv5-d16"] }
+sha2 = "0.10.9"
+
+[target.'cfg(target_arch="wasm32")'.dependencies]
+wasm-bindgen-futures = "=0.4.77"
+js-sys = "=0.3.104"
+web-sys = { version="=0.3.104", features=["Window","Document","Element","HtmlElement","Event","EventTarget","Response","HtmlCanvasElement","CanvasRenderingContext2d","Blob","BlobPropertyBag","Url","Performance","HtmlAnchorElement","console"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

@@ -1,130 +1,111 @@
-# Virtual Daisy
+# Virtual Synthphone E
 
-<a href="https://0rwx.com/"><img src="https://0rwx.com/static/AI-X-dark.png" alt="0rwx X: AI made" width="100"></a>
+The virtual instrument has its own firmware, photographed controls, audio host,
+MIDI routing and static website. [Virtual Daisy](https://github.com/UnitedCode/virtual-daisy)
+provides its reusable board models and ARM CPU core as pinned Git dependencies.
+This application previously lived in that repository's `web` directory; its Git
+history and public mirror were retained when it moved here.
 
-Virtual Daisy is labeled **X (AI made)** under the [0rwx framework](https://0rwx.com/).
+Power on, enable the microphone, then pick up the receiver. Play the photographed
+keys and drag the real side dials. MIDI files and MIDI input/output are in the
+small toolbar; keyboard shortcuts are under **?**.
 
-A virtual Daisy Seed for running firmware without the board plugged in.
+The Rust WebAssembly backend boots the real ARM firmware. Its UI, OLED, synth,
+vocal effects and saved settings run on that CPU. The photo layers preserve the
+actual instrument; see [asset provenance](phone/assets/README.md).
 
-Rust models handle the codec, SAI, DMA, clocks, GPIO, flash, SDRAM and Cortex-M7
-memory behavior. Renode runs the ARM instructions through a small C# API bridge.
-The runner loads an existing ELF, records audio and peripheral counters, and
-keeps the firmware unchanged.
+**Experimental:** live vocal audio can fall behind on slower browsers. The
+firmware lab renders complete clips and offers WAV downloads. Processing stays
+on the visitor's computer; the host serves static files. Timing is functional,
+not hardware calibrated.
 
-This started in [Synthphone E](https://github.com/UnitedCode/synth-phone-e-v2-rust).
-It lives here so other Daisy projects can use the same board models.
+<details><summary>Build and run locally</summary>
 
-## Running firmware
-
-Install Rust, a .NET 8 SDK, CMake, a C compiler, and the portable
-[Renode 1.17.0 runtime](https://github.com/renode/renode/releases/tag/v1.17.0).
-ARM conformance probes also need `rustup target add thumbv7em-none-eabihf`.
-Build your firmware in its own project, then run:
-
-```sh
-cargo run --release --locked -- capture /path/to/renode-runtime results/capture \
-  --elf /path/to/firmware.elf --board rev5
-```
-
-The runtime directory must contain `Infrastructure.dll`, `platform-lib/` and
-`platforms/cpus/stm32h7.repl`. Set `VIRTUAL_DAISY_DOTNET` if the SDK executable
-isn't named `dotnet`. The first run downloads pinned, checksum-verified CPU engine
-sources and builds the native adapter. Later runs can reuse
-`VIRTUAL_DAISY_CORE_CACHE`.
-
-`--elf` takes precedence over `VIRTUAL_DAISY_ELF`. There is no assumed firmware
-checkout, Cargo package name or parent directory. Firmware must use a flash
-vector table at `0x08000000`. The Renode Monitor and Python execution are disabled.
-
-| Board | Codec | SAI receive / transmit |
-| --- | --- | --- |
-| `rev4` | AK4556 | B / A |
-| `rev5` | WM8731 | A / B |
-| `rev7` | PCM3060 | B / A |
-
-Use `cargo run -- profiles` to inspect the wiring. Seed2 DFM and Seed3 are not
-supported.
-
-`capture` runs one virtual second by default. `VIRTUAL_DAISY_AUDIO_STEPS` accepts
-1–1000 steps of 10 ms. Input defaults to silence; append a mono or stereo 48014 Hz
-WAV to replay up to 1.1 seconds. Captures contain WAV audio, optional RTT output,
-register counters, runtime logs, and the copied ELF with its SHA256. A successful
-capture means execution completed without an unexpected runtime warning; it does
-not grade the application's behavior or require Synthphone startup messages.
-
-For a Rust project, the library can also be used directly:
-
-```toml
-[dependencies]
-virtual-daisy = { git = "https://github.com/UnitedCode/virtual-daisy", tag = "v0.1.1" }
-```
-
-## Checks
-
-### Keyboard carrier
-
-The `keyboard` command runs an existing keyboard-keyboard ELF with its carrier's
-15 GPIO-selected analog multiplexers and a baud-paced polling USART1:
+Install the `wasm32-unknown-unknown` Rust target and `wasm-bindgen-cli` version
+`0.2.127`. From this repository:
 
 ```sh
-cargo run --release --locked -- keyboard /path/to/renode-runtime results/keyboard \
-  --elf /path/to/keyboard.elf --board rev7 /path/to/scenario.csv
+CARGO_TARGET_DIR=target cargo run --manifest-path site-builder/Cargo.toml -- build
+CARGO_TARGET_DIR=target cargo run --manifest-path site-builder/Cargo.toml -- serve
 ```
 
-CSV actions are `at_ns,input,mux_index,channel,microvolts`, `at_ns,save,label`,
-and `at_ns,reset`. Indices are zero-based. Time is monotonic virtual nanoseconds.
-`reset` clears host observations only; it never changes guest state. ADC sources
-follow GPIO mux and decoder outputs, using ideal 0–3.3 V inputs. The fixture
-accepts single-channel, software-triggered ADC conversions. The H7 ADC container
-is corrected to expose channels 0–19, including PA5/channel 19.
+The preview binds `127.0.0.1:3030`. Check its ownership before launching it;
+stop your preview when finished. Deploy `dist` to any static HTTPS
+host. No Renode installation, login, hardware, backend, or paid API is required
+for visitors.
 
-The polling UART supports PCLK2, oversampling 16, 8N1 and a 16-byte FIFO plus
-shifter. Unsupported configurations fail explicitly. Transmitted bytes are
-timestamped when the full frame completes. `VIRTUAL_DAISY_UART_INSTANT=1` selects
-an explicitly nonphysical negative control. `VIRTUAL_DAISY_WALL_SECONDS` sets the
-host time limit (600 seconds by default); long scenarios need a larger bound.
+For agent work, reuse an existing compatible `CARGO_TARGET_DIR`.
 
-Artifacts include `.keyboard.txt` scan counts/gaps, `.midi.csv` completed bytes,
-RTT output, the unchanged ELF/hash, runtime logs and model provenance. Runtime
-warning checks reject unknown accesses, including ignored byte writes. The
-existing functional I2C timing limitation and single-conversion ADC DISCEN flag
-are documented exceptions; multi-channel/continuous conversion is rejected.
-Scan boundaries are observed from ADC channel 10's GPIO-selected 7→0 sweep.
-
-See the [keyboard diagnostic](https://github.com/UnitedCode/keyboard-keyboard/tree/main/tools/seed-tests)
-for paired stimuli, MIDI and scan gates, and a continuous one-hour scenario.
-The carrier is not a thermal or power model, and instruction timing remains
-uncalibrated. These tests can expose software behavior without proving physical
-board equivalence or ruling out a separate hardware fault.
-
-### Model regression checks
+To publish merged source to GitHub Pages, sign in with `gh` and run:
 
 ```sh
-cargo fmt --all -- --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
+CARGO_TARGET_DIR=target cargo run --manifest-path site-builder/Cargo.toml -- pages
 ```
 
-`cpu`, `storage`, `timing` and `probe` run standalone ARM conformance programs
-and their negative controls. They still take an ELF for artifact provenance, but
-do not test that application's audio. `run`, `startup`, `settings`, `levels` and
-`autotune` retain the Synthphone regression fixtures and their application-specific
-expectations. See the [Synthphone guide](docs/synthphone.md) for those commands.
+This builds locally, publishes the runtime bundle to `gh-pages`, and enables
+Pages. It requires a clean checkout whose commit is already on `origin/main`.
 
-The writeback and interrupt probes erase their temporary machine's internal flash
-through the modeled controller before installing their fixtures. This keeps their
-scratch area independent of the supplied firmware's size. ELF files stay unchanged;
-production audio runs load the original firmware into a separate machine.
+</details>
 
-The models are functional service scenarios. Instruction timing is not cycle
-accurate, analog behavior is incomplete, and hardware equivalence is unverified.
-See [conformance and remaining gaps](docs/conformance.md) before interpreting a
-simulated pass as a hardware result.
+<details><summary>Verification and implementation</summary>
 
-The engine downloads retain the upstream Renode infrastructure and tlib licenses.
-This repository does not bundle their binaries or change their licensing.
+```sh
+cargo test --release --manifest-path engine/Cargo.toml
+cargo test --manifest-path phone/Cargo.toml
+```
 
-The experimental [Rust browser backend](web/README.md) executes the original ARM
-Synthphone firmware in WebAssembly and renders its audio and OLED output from a
-static website. Browser visitors do not need Renode installed. Real-time browser
-performance and the finished virtual phone remain in development.
+The engine connects a Rust Cortex-M interpreter to Virtual Daisy's RCC, memory,
+GPIO, QSPI, DMA, SAI and codec models. Browser-specific Rust adapters provide
+TIM2, USART1, the blocking I2C buses, and the SSD1306 display. ADC coverage
+currently includes the firmware's initialization sequence, not general ADC
+conversions. Oscillator readiness is immediate; analog transients and bus timing
+are not calibrated. Unmapped accesses stop with an error.
+
+Short sequences are decoded at build time into Rust instruction calls and
+guarded register-local expressions. These still execute CPU instruction
+semantics and require the matching firmware hash. In native tests, every
+accepted lifted block is shadowed by interpretation and compared bit for bit:
+FP and general registers, flags, changed memory, PC, instruction count and cycles.
+Differential tests also compare complete audio with interpretation.
+Busy idle and decrement loops have bounded CPU-state-preserving coalescing.
+Board service follows audio, timer, UART, encoder and flash deadlines. MMIO
+accesses synchronize first; interrupt boundaries stop translated execution.
+Browser slices also stop after two virtual milliseconds, keeping captured mic
+input and queued controls responsive. A finer polling schedule is checked
+against the same firmware's PCM output. A transferred message port connects the
+firmware worker directly to the audio thread; UI rendering does not relay PCM.
+Capture packets are 256 frames and playback starts with 12 ms queued.
+
+Generate repeatable test input and measure the real ARM firmware in V8:
+
+```sh
+rustc -O engine/benchmark-fixture.rs -o /tmp/synthphone-fixture
+/tmp/synthphone-fixture /tmp/synthphone-voice.f32 voice
+node engine/benchmark.mjs dist /tmp/synthphone-voice.f32 6 3 full
+/tmp/synthphone-fixture /tmp/synthphone-stress.mid midi
+```
+
+Profiles are 0 Pitch Control, 1 Vocode, 2 Dry, 3 Tuned, 4 Harmony and 5 Percussion.
+`full` adds eight MIDI voices, drums and octave/formant controls. The generated
+60-second MIDI file exercises the same controls through the phone's file player.
+
+On an Apple M5 Pro with Node 26.5.1 (2026-11-22), six-second `full` runs rendered
+at 1.09×, 1.75×, 1.29×, 1.09×, 1.04× and 1.26× respectively. These measure
+firmware throughput, not microphone-to-speaker latency; slower devices can
+still fall behind. Capture/playback packet buffering is separate from the
+firmware's own FFT latency.
+
+The interpreter's source, Apache license, upstream revision and CPU tests live in
+[Virtual Daisy's CPU crate](https://github.com/UnitedCode/virtual-daisy/tree/main/cpu). Regression tests cover interrupt IT state, NVIC banks, conditional float
+moves, instruction flags, and 12,402 independently executed QEMU ARM float cases
+(also tested with sticky IXC). Firmware tests check actual microphone processing,
+silent input, MIDI channel routing, keypad scanning, encoder menus, hook channel
+selection, sustained streaming, and firmware QSPI save/restore across power
+cycles. Nonvolatile flash is stored in localStorage; microphone samples are not
+persisted. These are simulated checks, not physical
+hardware or listening acceptance.
+
+MIDI channel 1 controls vocal effects silently. Channel 2 plays the synthesizer;
+the lab's audible A4 test uses channel 2. This follows the firmware's routing.
+
+</details>
