@@ -43,7 +43,7 @@ CARGO_TARGET_DIR=target cargo run --manifest-path site-builder/Cargo.toml -- pag
 ```
 
 This builds locally, publishes the runtime bundle to `gh-pages`, and enables
-Pages. It requires a clean checkout whose commit is already on `origin/main`.
+Pages. It requires a clean checkout at the current `origin/main` commit.
 
 </details>
 
@@ -103,7 +103,8 @@ silent input, MIDI channel routing, keypad scanning, encoder menus, hook channel
 selection, sustained streaming, and firmware QSPI save/restore across power
 cycles. Nonvolatile flash is stored in localStorage; microphone samples are not
 persisted. These are simulated checks, not physical
-hardware or listening acceptance.
+hardware or listening acceptance. See the [backend parity audit](docs/rust-backend-parity.md)
+for the tested interrupt fixes and remaining emulator differences.
 
 MIDI channel 1 controls vocal effects silently. Channel 2 plays the synthesizer;
 the lab's audible A4 test uses channel 2. This follows the firmware's routing.

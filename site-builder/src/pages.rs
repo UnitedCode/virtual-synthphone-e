@@ -31,8 +31,13 @@ pub fn publish(root: &Path, dist: &Path) -> Result<(), Error> {
         return Err("Commit source changes before publishing Pages".into());
     }
     output(git(root).args(["fetch", "origin", "main"]))?;
-    output(git(root).args(["merge-base", "--is-ancestor", "HEAD", "origin/main"]))?;
     let source = output(git(root).args(["rev-parse", "HEAD"]))?;
+    let main = output(git(root).args(["rev-parse", "origin/main"]))?;
+    if source != main {
+        return Err(
+            "Publish the current origin/main revision to avoid replacing a newer app build".into(),
+        );
+    }
     let repository = output(Command::new("gh").current_dir(root).args([
         "repo",
         "view",
