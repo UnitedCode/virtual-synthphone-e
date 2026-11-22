@@ -1,6 +1,6 @@
 /* @ts-self-types="./phone.d.ts" */
-import { Firmware } from './engine.js';
-import * as import1 from "./engine.js"
+import { Firmware } from './engine.334906590af3f39bcd69a580f845203cfc9b7d12ae08ba14caf4ea0ebcdc2542.js';
+import * as import1 from "./engine.334906590af3f39bcd69a580f845203cfc9b7d12ae08ba14caf4ea0ebcdc2542.js"
 
 
 export function start() {
@@ -8,10 +8,13 @@ export function start() {
 }
 
 /**
+ * @param {string} firmware_url
  * @returns {Promise<void>}
  */
-export function start_worker() {
-    const ret = wasm.start_worker();
+export function start_worker(firmware_url) {
+    const ptr0 = passStringToWasm0(firmware_url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.start_worker(ptr0, len0);
     return ret;
 }
 function __wbg_get_imports() {
@@ -1190,7 +1193,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (module_or_path === undefined) {
-        module_or_path = new URL('phone_bg.wasm', import.meta.url);
+        module_or_path = new URL('phone_bg.334906590af3f39bcd69a580f845203cfc9b7d12ae08ba14caf4ea0ebcdc2542.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 
