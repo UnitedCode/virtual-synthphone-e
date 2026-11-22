@@ -27,6 +27,7 @@ impl Drop for TemporaryIndex {
     }
 }
 pub fn publish(root: &Path, dist: &Path) -> Result<(), Error> {
+    let runtime_assets = crate::runtime::assets(dist)?;
     if !output(git(root).args(["status", "--porcelain"]))?.is_empty() {
         return Err("Commit source changes before publishing Pages".into());
     }
@@ -91,27 +92,25 @@ pub fn publish(root: &Path, dist: &Path) -> Result<(), Error> {
     };
     output(staged().args(["read-tree", "--empty"]))?;
     // Publish only the runtime bundle, never unrelated files left in dist.
-    output(staged().args([
-        "add",
-        "--force",
-        "--",
-        ".nojekyll",
-        "source-revision.txt",
-        "index.html",
-        "lab.html",
-        "phone.css",
-        "worker.js",
-        "audio-worklet.js",
-        "engine.js",
-        "engine_bg.wasm",
-        "phone.js",
-        "phone_bg.wasm",
-        "synthphone.bin",
-        "assets/phone-base.webp",
-        "assets/phone-on-hook.webp",
-        "assets/receiver.webp",
-        "assets/wood.webp",
-    ]))?;
+    output(
+        staged()
+            .args([
+                "add",
+                "--force",
+                "--",
+                ".nojekyll",
+                "source-revision.txt",
+                "runtime-version.txt",
+                "runtime.json",
+                "index.html",
+                "lab.html",
+                "assets/phone-base.webp",
+                "assets/phone-on-hook.webp",
+                "assets/receiver.webp",
+                "assets/wood.webp",
+            ])
+            .args(runtime_assets),
+    )?;
     let tree = output(staged().arg("write-tree"))?;
     let mut commit = git(root);
     commit.args(["commit-tree", &tree]);
