@@ -5,6 +5,7 @@ use std::{
     process::Command,
 };
 mod pages;
+mod runtime;
 mod serve;
 fn run(command: &mut Command) -> Result<(), Box<dyn std::error::Error>> {
     let status = command.status()?;
@@ -82,6 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         engine.join("../firmware/synthphone.bin"),
         dist.join("synthphone.bin"),
     )?;
+    runtime::version(&dist)?;
     fs::write(dist.join(".nojekyll"), [])?;
     let revision = Command::new("git")
         .current_dir(dist.parent().unwrap())

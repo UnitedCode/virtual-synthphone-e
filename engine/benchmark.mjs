@@ -8,8 +8,10 @@ const [directory, fixture, secondsText = '6', profileText = '0', stimulus = 'voc
 if (!directory || !fixture) throw new Error('Usage: node benchmark.mjs <module directory> <stereo input.f32> [seconds] [profile 0..5]');
 const seconds = Number(secondsText), profile = Number(profileText);
 if (!(seconds >= 2 && seconds <= 1200) || !Number.isInteger(profile) || profile < 0 || profile > 5) throw new Error('Invalid benchmark duration or profile');
-const { default: init, Firmware } = await import(pathToFileURL(path.resolve(directory, 'engine.js')));
-await init({ module_or_path: fs.readFileSync(path.join(directory, 'engine_bg.wasm')) });
+const manifestPath = path.join(directory, 'runtime.json');
+const runtime = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath)).files : {};
+const { default: init, Firmware } = await import(pathToFileURL(path.resolve(directory, runtime['engine.js'] || 'engine.js')));
+await init({ module_or_path: fs.readFileSync(path.join(directory, runtime['engine_bg.wasm'] || 'engine_bg.wasm')) });
 const bytes = fs.readFileSync(fixture);
 const input = new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
 const f = new Firmware(fs.readFileSync(firmwarePath || new URL('../firmware/synthphone.bin', import.meta.url)));

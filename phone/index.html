@@ -76,6 +76,6 @@
     <details class="engine"><summary>Engine</summary><div class="drawer"><p id="persistence">Settings stay on this device.</p><p id="performance">Phone off.</p><p id="error-detail"></p><p>Audio stays on your computer. Timing is not hardware calibrated.</p><a href="lab.html">Audio verification lab</a> · <a href="https://github.com/UnitedCode/virtual-synthphone-e">Source</a></div></details>
     <span class="maker">0rwx × AI made</span>
   </footer>
-  <script type="module">import init from './phone.js';init().catch(()=>{document.getElementById('status').textContent='Could not load the phone. Reload to try again.';});</script>
+  <script id="runtime" data-worker="worker.js" data-worklet="audio-worklet.js" type="module">import init from './phone.js';init().catch(()=>{document.getElementById('status').textContent='Could not load the phone. Reload to try again.';});</script>
 </body>
 </html>

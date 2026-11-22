@@ -6,27 +6,47 @@ class FirmwareAudio extends AudioWorkletProcessor {
     this.queue = [];
     this.offset = 0;
     this.queued = 0;
-    this.capture = new Float32Array(256);
+    this.capture = new Float32Array(128);
     this.at = 0;
     this.underruns = 0;
     this.playing = false;
     this.enabled = false;
+    this.prebufferFrames = 0;
+    this.captureFrames = 128;
+    this.maxQueuedFrames = sampleRate * 0.04;
+    this.resyncs = 0;
     this.test = null;
     this.testMuted = false;
     this.port.onmessage = ({ data }) => {
       if (data.audio) {
-        if (this.queued + data.audio.length > sampleRate * 2) this.reset();
         this.queue.push(data.audio);
         this.queued += data.audio.length;
+        // A stalled tab must not replay seconds of old microphone audio. Only
+        // overflow recovery discards PCM; report it, and invalidate calibration.
+        if (this.queued > this.maxQueuedFrames) {
+          let discard = this.queued - this.prebufferFrames;
+          while (discard > 0 && this.queue.length) {
+            const n = Math.min(discard, this.queue[0].length - this.offset);
+            this.offset += n; this.queued -= n; discard -= n;
+            if (this.offset === this.queue[0].length) { this.queue.shift(); this.offset = 0; }
+          }
+          this.resyncs++;
+        }
       }
       if (data.reset) this.reset();
-      if (data.start) { this.enabled = true; this.at = 0; }
+      if (data.start) {
+        this.captureFrames = data.captureFrames;
+        this.prebufferFrames = data.prebufferFrames;
+        this.maxQueuedFrames = data.maxQueuedFrames;
+        this.capture = new Float32Array(this.captureFrames);
+        this.enabled = true; this.at = 0;
+      }
       if (data.probe) {
         this.test = {
           reference: data.probe,
           mic: new Float32Array(data.probe.length),
           processed: new Float32Array(data.probe.length),
-          at: 0, underruns: this.underruns
+          at: 0, underruns: this.underruns, resyncs: this.resyncs
         };
         this.testMuted = true;
       }
@@ -42,7 +62,7 @@ class FirmwareAudio extends AudioWorkletProcessor {
   process(inputs, outputs) {
     const out = outputs[0][0];
     const input = inputs[0]?.[0];
-    if (!this.playing && this.queued >= sampleRate * 0.012) this.playing = true;
+    if (!this.playing && this.queued >= this.prebufferFrames && this.queued) this.playing = true;
     for (let i = 0; i < out.length; i++) {
       if (this.playing && this.queue.length) {
         const block = this.queue[0];
@@ -61,8 +81,9 @@ class FirmwareAudio extends AudioWorkletProcessor {
       }
       if (this.enabled) this.capture[this.at++] = input ? input[i] : 0;
       if (this.enabled && this.at === this.capture.length) {
-        this.port.postMessage({ mic: this.capture, underruns: this.underruns }, [this.capture.buffer]);
-        this.capture = new Float32Array(256);
+        this.port.postMessage({ mic: this.capture, underruns: this.underruns,
+          queuedFrames: this.queued, resyncs: this.resyncs, capturedAt: Date.now() }, [this.capture.buffer]);
+        this.capture = new Float32Array(this.captureFrames);
         this.at = 0;
       }
       // Calibration records the real mic and the normal firmware render on the
@@ -74,7 +95,8 @@ class FirmwareAudio extends AudioWorkletProcessor {
         out[i] = t.reference[t.at++];
         if (t.at === t.reference.length) {
           this.port.postMessage({ latencyResult: true, micRecording: t.mic,
-            processedRecording: t.processed, underruns: this.underruns - t.underruns },
+            processedRecording: t.processed,
+            underruns: this.underruns - t.underruns + this.resyncs - t.resyncs },
             [t.mic.buffer, t.processed.buffer]);
           this.test = null;
         }

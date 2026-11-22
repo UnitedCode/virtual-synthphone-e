@@ -1,4 +1,4 @@
 // Browser module-worker entry. All emulation and message handling live in Rust.
 import init, { start_worker } from './phone.js';
 await init();
-await start_worker();
+await start_worker(new URL('./synthphone.bin', import.meta.url).href);
