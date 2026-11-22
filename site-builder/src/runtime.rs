@@ -30,6 +30,23 @@ fn imports(source: &str, file: &str, key: &str) -> String {
         .join("\n")
         + "\n"
 }
+pub fn assets(dist: &Path) -> io::Result<Vec<String>> {
+    let version = fs::read_to_string(dist.join("runtime-version.txt"))?;
+    let key = version.trim();
+    if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(io::Error::other("Invalid runtime version"));
+    }
+    FILES
+        .iter()
+        .map(|file| {
+            let name = url(file, key);
+            if !dist.join(&name).is_file() {
+                return Err(io::Error::other(format!("Missing runtime asset: {name}")));
+            }
+            Ok(name)
+        })
+        .collect()
+}
 pub fn version(dist: &Path) -> io::Result<()> {
     let mut digest = Sha256::new();
     for file in FILES {
@@ -135,6 +152,10 @@ mod tests {
         };
         let first = generate(b"old wasm");
         let second = generate(b"new wasm");
+        fs::write(directory.join("private.txt"), "must not be published").unwrap();
+        let published = assets(&directory).unwrap();
+        assert_eq!(published.len(), FILES.len());
+        assert!(!published.iter().any(|name| name.contains("private")));
         assert_ne!(first, second);
         for file in FILES {
             assert!(directory.join(url(file, &second)).is_file());
@@ -150,6 +171,8 @@ mod tests {
         assert!(glue.contains(&url("phone_bg.wasm", &second)));
         let worker = fs::read_to_string(directory.join(url("worker.js", &second))).unwrap();
         assert!(worker.contains(&url("synthphone.bin", &second)));
+        fs::write(directory.join("runtime-version.txt"), "../../private").unwrap();
+        assert!(assets(&directory).is_err());
         fs::remove_dir_all(directory).unwrap();
     }
 }
