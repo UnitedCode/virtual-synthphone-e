@@ -62,20 +62,41 @@ footer{position:absolute;z-index:8;bottom:12px;left:20px;right:20px;display:flex
 .assistive{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 .assistive:focus-visible{z-index:12;width:auto;height:auto;margin:0;padding:5px 10px;clip-path:none;left:86%;top:45%;background:#292b2b;color:#eee}
 @media (max-width:700px), (max-width:950px) and (max-height:500px) and (pointer:coarse){
-  .utility{position:relative;inset:auto;margin:max(8px,env(safe-area-inset-top)) auto 0;width:min(420px,calc(100% - 24px));flex-wrap:wrap;justify-content:center}
-  .utility>button,.utility>.file-pick,.utility>details>summary{min-height:44px;min-width:34px;padding:7px 5px;font-size:12px}
+  body{
+    background:radial-gradient(ellipse at 50% 8%,#2a19151a,#120d0bc9 82%),
+      #241b17 url('assets/wood.webp') center top/680px auto;
+  }
+  .utility{
+    position:relative;inset:auto;margin:max(12px,env(safe-area-inset-top)) auto 0;
+    width:min(420px,calc(100% - 24px));padding:3px;flex-wrap:wrap;justify-content:space-between;
+    border:1px solid #65524a;border-radius:8px;background:#221c19;
+    box-shadow:inset 0 1px #eac6a61c,0 3px 9px #120b0980;
+  }
+  .utility>button,.utility>.file-pick,.utility>details>summary{
+    min-height:44px;min-width:34px;padding:6px 5px;border:0;border-radius:4px;
+    background:transparent;color:#e0d4c6;font:650 12px/1.2 system-ui,sans-serif;letter-spacing:.045em;
+  }
+  .utility>button:disabled{color:#9b8d83}
+  .utility>#power[data-on=true]{background:#34382c;color:#d8dec2}
   .utility>#microphone{width:44px;padding-inline:2px;white-space:normal;line-height:1.15;overflow-wrap:anywhere}
   .utility>.file-pick{justify-content:center}
   .utility>details>summary{display:grid;place-items:center}
   .utility details{position:static}
-  .utility .drawer{left:0;right:0;width:auto;max-height:65dvh;overflow:auto}
+  .utility .drawer{left:0;right:0;width:auto;max-height:65dvh;overflow:auto;border-radius:7px}
   .utility .drawer button,.utility .drawer select{min-height:44px}
   .mobile-guide{display:block}
   .desktop-guide{display:none}
 
-  .workbench,.workbench.zoomed{height:auto;min-height:0;display:grid;overflow:visible;padding:10px 12px 6px}
-  .phone,.workbench.zoomed .phone{width:min(100%,420px);aspect-ratio:auto;margin:0}
-  .instrument-face{position:relative;display:block;aspect-ratio:1150/1670;background:#75141d}
+  .workbench,.workbench.zoomed{height:auto;min-height:0;display:grid;overflow:visible;padding:10px 12px 4px}
+  .phone,.workbench.zoomed .phone{
+    width:min(100%,420px);aspect-ratio:auto;margin:0;padding:4px;
+    border:1px solid #765149;border-radius:11px;background:linear-gradient(155deg,#442a26,#2a201d 38%);
+    box-shadow:inset 0 1px #e6a29440,0 3px 0 #150e0d,0 14px 28px -10px #0c0707e6;
+  }
+  .instrument-face{
+    position:relative;display:block;aspect-ratio:1150/1670;
+    overflow:hidden;border-radius:6px 6px 0 0;background:#75141d;
+  }
   .body-photo{filter:none}
   .cord-tail,.photo-control>img{display:none}
 
@@ -98,29 +119,48 @@ footer{position:absolute;z-index:8;bottom:12px;left:20px;right:20px;display:flex
   .live-screen{left:29.1%;top:84.1%;width:38.4%;height:auto;transform:rotate(-.45deg)}
   #power-led{left:45.9%;top:1.2%;width:2.7%;height:1.1%;transform:none;border-radius:2px}
 
-  .surface-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:8px;padding:8px;background:#242424;border:1px solid #4e4540}
+  .surface-controls{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:6px;padding:9px 8px 3px;
+    background:linear-gradient(#332b27,#261e1b);border-top:1px solid #846050;border-radius:0 0 6px 6px;
+    box-shadow:inset 0 1px #140b09;
+  }
   .encoder-controls{display:grid;grid-template-columns:44px minmax(0,1fr) 44px}
   .surface-controls .photo-control,.surface-controls .assistive{position:static;inset:auto;clip-path:none;width:auto;height:auto;min-height:44px;margin:0;padding:0;transform:none;overflow:visible;transition:none}
-  .surface-controls button{border:1px solid #605750;background:#342e2b;color:#f0e7dc;font-size:13px;border-radius:2px;box-shadow:inset 0 1px #ffffff0f}
-  .surface-controls button:disabled{color:#9d9790}
+  .surface-controls button{
+    border:1px solid #6a5549;border-bottom-color:#17110f;border-radius:5px;
+    background:linear-gradient(#4b3c34,#352b26);color:#f2e6da;font:650 13px/1.2 system-ui,sans-serif;
+    box-shadow:inset 0 1px #e1bba12d,0 1px 2px #120b09b3;
+  }
+  .surface-controls button:disabled{color:#b2a194}
   .surface-controls button:active:not(:disabled),.surface-controls #encoder.dragging{background:#252120}
   .surface-controls button:focus-visible{outline:2px solid #d8c18b;outline-offset:-3px}
   .surface-controls .handset{touch-action:manipulation}
-  .surface-controls .handset.lifted{background:#663034;border-color:#a45859}
+  .surface-controls .handset.lifted{background:linear-gradient(#75413d,#522c2a);border-color:#aa6a5c #79473d #271510}
   .surface-controls .mobile-label{display:inline}
   .handset.lifted .pick-up,.handset:not(.lifted) .hang-up{display:none}
+  .encoder-controls #enc-down{border-radius:5px 0 0 5px}
   .encoder-controls #encoder{border-inline:0;border-radius:0}
+  .encoder-controls #enc-up{border-radius:0 5px 5px 0}
   #enc-down,#enc-up{font-size:18px}
-  .mic-dial{position:static;grid-column:1/-1;width:auto;height:auto;transform:none;display:grid;grid-template-columns:auto minmax(0,1fr) 4ch;align-items:center;gap:10px;padding-inline:5px;font-size:13px;color:#e2dece}
-  #gain{position:static;opacity:1;width:100%;height:44px;accent-color:#c4aa8a;cursor:pointer;touch-action:pan-y;--native-gain:1}
-  #gain-value{position:static;padding:0;background:none;opacity:1;transform:none;text-align:right;font-size:inherit}
+  .mic-dial{
+    position:static;grid-column:1/-1;width:auto;height:auto;transform:none;display:grid;
+    grid-template-columns:auto minmax(0,1fr) 4ch;align-items:center;gap:12px;padding-inline:4px;
+    border-top:1px solid #654d404d;color:#e3d2c1;font-size:13px;
+  }
+  .mic-dial label{font:600 13px/1.2 system-ui,sans-serif}
+  #gain{position:static;opacity:1;width:100%;height:44px;accent-color:#c7a784;cursor:pointer;touch-action:pan-y;--native-gain:1}
+  #gain-value{position:static;padding:0;background:none;opacity:1;transform:none;text-align:right;font-size:inherit;font-variant-numeric:tabular-nums}
 
-  footer{position:relative;inset:auto;flex-wrap:wrap;gap:8px;margin:0 auto;padding:4px 0 max(12px,env(safe-area-inset-bottom));width:min(420px,calc(100% - 24px))}
+  footer{
+    position:relative;inset:auto;flex-wrap:wrap;gap:10px;margin:0 auto;
+    padding:4px 4px max(12px,env(safe-area-inset-bottom));width:min(420px,calc(100% - 24px));
+    color:#c8b3a3;font:13px/1.4 system-ui,sans-serif;
+  }
   #status{flex:1;min-width:0}
   #zoom{display:none}
   .engine{margin-left:0}
   .engine summary{display:grid;align-items:center;min-height:44px}
-  .engine .drawer{left:0;right:0;bottom:100%;width:auto;max-height:65dvh;overflow:auto}
+  .engine .drawer{left:0;right:0;bottom:100%;width:auto;max-height:65dvh;overflow:auto;border-radius:7px}
 }
 @media (max-width:375px){
   .utility{display:grid;grid-template-columns:repeat(12,minmax(0,1fr))}
