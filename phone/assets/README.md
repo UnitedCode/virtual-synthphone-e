@@ -48,15 +48,10 @@ positions the real keypad and OLED across the viewport. The existing rotary
 caps sit on the photographed face beside the OLED.
 
 `mobile-original-receiver.webp` masks the handset from those same photo pixels
-so it can follow the player's finger. `mobile-original-cradle.webp` blends in the
-upper patch from the built-in image edit while the handset is moving or lifted.
-The on-hook image uses the original photo across the entire instrument.
-
-<details><summary>Overhead cradle patch image prompt</summary>
-
-> This attached photo is the edit target for an empty-cradle patch. Remove only the horizontal red handset at the top (both ends and the handle that links them) and its short wire coming in from the left. Expose the molded red cradle underneath it, with the existing two square red supports continuing up to meet the back edge. Continue the beige tabletop behind either end where appropriate. Keep the cradle supports which are already visible below the handset in exactly the same positions, match the original imperfect warm photograph and its cherry red plastic. Keep the masking tape, handwritten words, keypad, OLED window, base, perspective, and all remaining pixels exactly where they are. No zoom, no reframing, no text changes, no extra controls, no graphic redesign. Only the pixels previously obscured by the handset will be used.
-
-</details>
+so it can follow the player's finger. `mobile-photographed-cradle.webp` aligns the
+cradle from the owner's handset-off photograph to the overhead photo. The patch
+uses the overhead photo's tabletop around the cradle and blends just above the
+handwritten label. The keypad stays in place as the handset moves.
 
 <details><summary>Empty cradle image prompt</summary>
 
