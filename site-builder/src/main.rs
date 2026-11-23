@@ -89,8 +89,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for file in [
         "keypad-restored.webp",
         "mobile-encoder-wheel.webp",
-        "mobile-handset.webp",
-        "mobile-mic-knob.webp",
         "phone-base.webp",
         "receiver.webp",
         "phone-on-hook.webp",

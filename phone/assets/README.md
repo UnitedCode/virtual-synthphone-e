@@ -30,11 +30,12 @@ against the regenerated panel in `phone/phone.css`.
 
 `mobile-handset.webp`, `mobile-encoder.webp`, and `mobile-mic-knob.webp` use
 pixels from the owner's second photograph. The parts were cropped, masked, and
-leveled for the mobile controls.
+leveled for an earlier mobile layout.
 
 `mobile-encoder-wheel.webp` shows the encoder face-on. The built-in imagegen
-tool used the photographed side view as a material reference. The pale index
-mark shows each turn as the wheel sends encoder steps to the firmware.
+tool used the photographed side view as a material reference. The encoder and
+mic controls use the same wheel at different sizes. Their index marks show
+encoder steps and mic level.
 
 <details><summary>Encoder wheel image prompt</summary>
 
