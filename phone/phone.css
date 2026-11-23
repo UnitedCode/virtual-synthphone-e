@@ -27,7 +27,7 @@ summary::-webkit-details-marker{display:none}
 .phone{position:relative;width:min(94vw,calc((100dvh - 165px)*1.084),1100px);aspect-ratio:1306/1205;container-type:inline-size;isolation:isolate;user-select:none;-webkit-user-select:none}
 .instrument-face,.surface-controls,.encoder-controls{display:contents}
 .face-photo{display:block;width:100%;height:100%}
-.mobile-label,.mobile-guide,.panel-wheel{display:none}
+.mobile-label,.mobile-guide,.panel-wheel,.mobile-receiver{display:none}
 .body-photo,.photo-control>img{display:block;width:100%;height:100%;object-fit:fill;pointer-events:none;-webkit-user-drag:none}
 .body-photo{filter:drop-shadow(13px 21px 11px #0008)}
 .cord-tail{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;clip-path:polygon(0 0,28% 0,28% 6.5%,24% 9%,23.6% 16%,25.5% 23%,25.5% 37%,22% 47%,0 47%);transform-origin:18% 41.5%;transition:transform 240ms ease}
@@ -94,42 +94,41 @@ footer{position:absolute;z-index:8;bottom:12px;left:20px;right:20px;display:flex
     box-shadow:inset 0 1px #e6a29440,0 3px 0 #150e0d,0 14px 28px -10px #0c0707e6;
   }
   .instrument-face{
-    position:relative;display:block;aspect-ratio:1088/1445;
+    position:relative;display:block;aspect-ratio:534/1104;
     overflow:hidden;border-radius:6px;background:#75141d;
   }
   .body-photo{filter:none}
   .cord-tail,.photo-control>img{display:none}
   #handset{
-    position:relative;inset:auto;width:100%;height:auto;min-height:48px;margin-bottom:4px;
-    display:flex;align-items:center;justify-content:center;gap:10px;padding:0 12px;
-    clip-path:none;transform:none;touch-action:manipulation;
-    border:1px solid #6b473f;border-radius:6px;background:#302420;color:#f2ddd1;
-    font:650 14px/1.2 system-ui,sans-serif;
+    inset:0 0 auto;width:100%;height:calc(363 / 1104 * 100%);
+    display:grid;place-items:center;clip-path:none;transform:none;touch-action:manipulation;
   }
-  #handset::before{
-    content:"";width:9px;height:14px;flex:none;border:1px solid #181210;
-    border-radius:2px;background:#544741;box-shadow:0 1px #95756988;
+  .mobile-receiver{
+    display:block;position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:url('assets/mobile-receiver-lift.webp') top center/100% 100% no-repeat;
+    transition:transform 240ms ease-out,opacity 180ms ease-out;
   }
-  #handset:disabled{color:#b9a398}
-  #handset.lifted{background:#4a2826;border-color:#89574e}
-  #handset.lifted::before{background:#c8aa80;box-shadow:inset 0 -3px #66503a,0 1px #95756988}
-  #handset .mobile-label{display:inline;white-space:nowrap}
-  .handset.lifted .pick-up,.handset:not(.lifted) .hang-up{display:none}
+  .handset.lifted .mobile-receiver{transform:translateY(-95%);opacity:0}
+  .handset.lifted .mobile-label{
+    display:inline;padding:5px 9px;border-radius:3px;background:#570d21e0;
+    color:#fae4da;font:650 13px/1.2 system-ui,sans-serif;
+  }
 
-  /* This grid follows the four rows of key wells in keypad-restored.webp. */
+  /* Each hit area includes the space around its photographed key well. */
   #keypad{
-    position:absolute;inset:11.8% 17.5% 23.5% 17.3%;display:grid;
-    grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:4.95% 6.5%;
+    position:absolute;inset:50% 27% 15.3% 21.3%;display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));
   }
   .key,.key.aligned{position:relative;inset:auto;width:100%;height:100%;clip-path:none;border-radius:5%}
-  .key:active:not(:disabled),.key.pressed{background:#100b1266;box-shadow:inset 0 3px 5px #0009}
+  .key::after{content:"";position:absolute;inset:13% 12%;border-radius:7%;pointer-events:none}
+  .key:active:not(:disabled)::after,.key.pressed::after{background:#100b1266;box-shadow:inset 0 3px 5px #0009}
   .key:focus-visible{outline:2px solid #f4ddb0;outline-offset:2px}
-  .live-screen{left:31.7%;top:81.8%;width:35.85%;height:auto;transform:none}
-  #power-led{left:47.2%;top:1.55%;width:4.8%;height:2.05%;transform:none;border-radius:2px}
+  .live-screen{left:36.1%;top:85.95%;width:22.8%;height:auto;transform:rotate(-1deg)}
+  #power-led{left:44.6%;top:45.1%;width:3.8%;height:1.9%;transform:none;border-radius:2px}
   #power-led.on{background:radial-gradient(ellipse at 35% 35%,#edf0b2,#c7d293 65%,#798352);box-shadow:0 0 4px #c6d19bbf}
 
   .surface-controls{
-    position:absolute;z-index:3;inset:79.8% 0 4.5%;display:grid;
+    position:absolute;z-index:3;inset:84.5% 0 8.5%;display:grid;
     grid-template-columns:30% minmax(0,1fr) 30%;align-items:center;pointer-events:none;
   }
   .encoder-controls{grid-column:1;display:grid;justify-items:center}
@@ -181,4 +180,4 @@ footer{position:absolute;z-index:8;bottom:12px;left:20px;right:20px;display:flex
   .utility>button,.utility>details{grid-column:span 3}
   .utility>#power,.utility>#microphone,.utility>.file-pick{grid-column:span 4;width:auto}
 }
-@media(prefers-reduced-motion:reduce){.handset,.key>img,.panel-wheel::before{transition:none}}
+@media(prefers-reduced-motion:reduce){.handset,.mobile-receiver,.key>img,.panel-wheel::before{transition:none}}

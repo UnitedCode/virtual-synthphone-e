@@ -37,6 +37,17 @@ tool used the photographed side view as a material reference. The encoder and
 mic controls use the same wheel at different sizes. Their index marks show
 encoder steps and mic level.
 
+`mobile-phone-face.webp` uses the owner's close-up photo for the mobile case,
+handwritten labels, keypad, and display surround. The built-in imagegen tool
+reconstructed only the cradle area hidden behind the receiver. The moving
+`mobile-receiver-lift.webp` layer uses the receiver pixels from the same photo.
+
+<details><summary>Empty cradle image prompt</summary>
+
+> Photographic inpainting for an interactive Synthphone E, using the attached real front-on phone photo crop. Remove only the bright horizontal red handset that crosses the middle of the picture from its left edge to its right edge. Reveal the actual-looking stationary cherry-red handset cradle beneath, with the two existing rectangular molded red lifting supports at x≈35–107 and x≈389–464 extending upward just enough that the handset could rest on them. The back of the cradle is the original shallow dark burgundy strip already visible along the top of this reference. Match exact framing, close camera angle, color, faint blur, shine, original physical molding, and uneven warm light of this real photo. Keep the bottom part of both cradle supports and surrounding red base at their existing positions and keep the narrow background along the top. The new plastic between them is a believable recessed cradle surface, plain and moderately dark red with natural shadow. Use the exact same landscape crop, no resize or zoom, no rotation, no new knobs or other parts, no writing or decals, no extra silhouettes or invented holes, no studio restyling. This is one matched empty-cradle frame of the same photographed object immediately after the receiver was pulled away.
+
+</details>
+
 <details><summary>Encoder wheel image prompt</summary>
 
 > Make a single small photorealistic product-photo asset for this Synthphone E rotary encoder wheel seen face-on. The attached image is an actual side view of the existing knob and is the material reference: plain short black injection-molded plastic cap with straight grip flutes. Show it dead-on from the axis, perfectly circular, centered, occupying about 75% of a square canvas; visible dark grip ribs all around the rim and a flat satin black center with a very slight circular molding grain. Include one tiny faded ivory index nick near the rim at twelve o'clock so the player can see it turning. Use soft even window light, a slight genuine specular edge and a little real handling wear. It should look like a real inexpensive workshop electronics knob photographed with a macro lens. Isolate the knob on true transparent alpha, no other objects, no count marks, text, ring markings, logos, reflections of anything, colorful LEDs, metallic silver accents, oversized bevels, complicated machinery, digital rendering or background.
