@@ -23,13 +23,13 @@ name="realtime"
 required-features=["profile"]
 
 [dependencies]
-virtual-daisy = { git = "https://github.com/UnitedCode/virtual-daisy.git", rev = "a1c4b61c20355d54d9ca608331f307bae67a4a2e" }
-zmu_cortex_m = { git = "https://github.com/UnitedCode/virtual-daisy.git", rev = "a1c4b61c20355d54d9ca608331f307bae67a4a2e", default-features = false, features = ["armv7em", "fpv5-d16"] }
+virtual-daisy = { git = "https://github.com/UnitedCode/virtual-daisy.git", rev = "323c4c77a1210600425f767673d1d9309b7d26f4" }
+zmu_cortex_m = { git = "https://github.com/UnitedCode/virtual-daisy.git", rev = "323c4c77a1210600425f767673d1d9309b7d26f4", default-features = false, features = ["armv7em", "fpv5-d16"] }
 wasm-bindgen = "=0.2.127"
 sha2 = "0.10.9"
 
 [build-dependencies]
-zmu_cortex_m = { git="https://github.com/UnitedCode/virtual-daisy.git", rev="a1c4b61c20355d54d9ca608331f307bae67a4a2e", default-features=false, features=["armv7em","fpv5-d16"] }
+zmu_cortex_m = { git="https://github.com/UnitedCode/virtual-daisy.git", rev="323c4c77a1210600425f767673d1d9309b7d26f4", default-features=false, features=["armv7em","fpv5-d16"] }
 sha2 = "0.10.9"
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
