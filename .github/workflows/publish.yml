@@ -1,0 +1,95 @@
+name: Publish Synthphone
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 * * * *'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: synthphone-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'UnitedCode/virtual-synthphone-e' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      changed: ${{ steps.revisions.outputs.changed }}
+    env:
+      RUSTUP_TOOLCHAIN: '1.97.1'
+      CARGO_TARGET_DIR: ${{ runner.temp }}/synthphone-target
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - id: revisions
+        name: Check the latest hardware firmware
+        env:
+          SITE: https://unitedcode.github.io/virtual-synthphone-e
+        run: |
+          firmware=$(git ls-remote --exit-code https://github.com/UnitedCode/synth-phone-e-v2-rust.git refs/heads/main | cut -f1)
+          [[ "$firmware" =~ ^[a-f0-9]{40}$ ]]
+          printf 'firmware=%s\n' "$firmware" >> "$GITHUB_OUTPUT"
+          live_firmware=$(curl -fsS --max-time 15 "$SITE/firmware-revision.txt" 2>/dev/null || true)
+          live_app=$(curl -fsS --max-time 15 "$SITE/source-revision.txt" 2>/dev/null || true)
+          if [[ "$live_firmware" = "$firmware" && "$live_app" = "$GITHUB_SHA" ]]; then
+            printf 'changed=false\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'changed=true\n' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.revisions.outputs.changed == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: steps.revisions.outputs.changed == 'true'
+        with:
+          repository: UnitedCode/synth-phone-e-v2-rust
+          ref: ${{ steps.revisions.outputs.firmware }}
+          path: hardware-firmware
+          persist-credentials: false
+      - name: Install Rust targets and objcopy
+        if: steps.revisions.outputs.changed == 'true'
+        run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component llvm-tools-preview --target thumbv7em-none-eabihf,wasm32-unknown-unknown
+      - uses: actions/cache@v4
+        if: steps.revisions.outputs.changed == 'true'
+        with:
+          path: ~/.cargo/bin/wasm-bindgen
+          key: wasm-bindgen-${{ runner.os }}-${{ runner.arch }}-0.2.127
+      - name: Install the pinned WASM binding tool
+        if: steps.revisions.outputs.changed == 'true'
+        run: |
+          if [[ $(wasm-bindgen --version || true) != 'wasm-bindgen 0.2.127' ]]; then
+            cargo install --locked --force --version 0.2.127 wasm-bindgen-cli
+          fi
+      - name: Build and verify the original ARM firmware, then package the site
+        if: steps.revisions.outputs.changed == 'true'
+        run: cargo run --locked --release --manifest-path site-builder/Cargo.toml -- build-firmware hardware-firmware
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.revisions.outputs.changed == 'true'
+        with:
+          path: dist
+          retention-days: 1
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - id: pages
+        uses: actions/deploy-pages@v4

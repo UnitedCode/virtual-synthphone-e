@@ -277,6 +277,7 @@ fn enable() {
         "tone",
         "midi-file",
         "latency-test",
+        "software-latency-test",
     ] {
         let _ = el(id).remove_attribute("disabled");
     }
@@ -373,6 +374,7 @@ fn power_off() {
         "file-play",
         "file-stop",
         "latency-test",
+        "software-latency-test",
     ] {
         let _ = el(id).set_attribute("disabled", "");
     }
@@ -506,7 +508,7 @@ async fn power() -> Result<(), JsValue> {
                     "latency-status",
                     &get(&d, "text").as_string().unwrap_or_default(),
                 );
-                for id in ["latency-test", "microphone", "handset", "tone"] {
+                for id in LATENCY_CONTROLS {
                     let _ = el(id).remove_attribute("disabled");
                 }
             }
@@ -666,14 +668,29 @@ fn microphone() {
         .set_timeout_with_callback_and_timeout_and_arguments_0(timeout.unchecked_ref(), 20_000);
     spawn_local(async move { finish_mic_request(&request, JsFuture::from(capture).await) });
 }
-fn measure_latency() {
+const LATENCY_CONTROLS: [&str; 5] = [
+    "latency-test",
+    "software-latency-test",
+    "microphone",
+    "handset",
+    "tone",
+];
+fn measure_latency(synthetic: bool) {
     let ready = APP.with(|s| {
-        s.borrow()
-            .as_ref()
-            .is_some_and(|a| a.stream.is_some() && !a.lifted && a.tone.is_none())
+        s.borrow().as_ref().is_some_and(|a| {
+            (synthetic || a.stream.is_some())
+                && a.mic_request.is_none()
+                && !a.lifted
+                && a.tone.is_none()
+        })
     });
     if !ready {
-        text("latency-status", "Enable the live mic, replace the receiver and turn Test voice off. Use speakers for this test.");
+        let message = if synthetic {
+            "Replace the receiver, finish any mic request and turn Test voice off."
+        } else {
+            "Enable the live mic, replace the receiver and turn Test voice off. Use speakers for this test."
+        };
+        text("latency-status", message);
         return;
     }
     APP.with(|s| {
@@ -681,11 +698,18 @@ fn measure_latency() {
             a.testing = true;
         }
     });
-    for id in ["latency-test", "microphone", "handset", "tone"] {
+    for id in LATENCY_CONTROLS {
         let _ = el(id).set_attribute("disabled", "");
     }
-    text("latency-status", "Measuring… Keep quiet for seven seconds.");
-    send(&object("latency_start"));
+    text(
+        "latency-status",
+        if synthetic {
+            "Measuring software delay…"
+        } else {
+            "Measuring… Keep quiet for seven seconds."
+        },
+    );
+    command("latency_start", "synthetic", synthetic);
 }
 fn midi_route(data: &JsValue) {
     let bytes = Uint8Array::new(&get(data, "data"));
@@ -982,7 +1006,12 @@ pub fn start() {
         gain_changed();
     });
     bind(el("microphone").as_ref(), "click", |_| microphone());
-    bind(el("latency-test").as_ref(), "click", |_| measure_latency());
+    bind(el("latency-test").as_ref(), "click", |_| {
+        measure_latency(false)
+    });
+    bind(el("software-latency-test").as_ref(), "click", |_| {
+        measure_latency(true)
+    });
     bind(el("tone").as_ref(), "change", |_| {
         let input: HtmlInputElement = el("tone").unchecked_into();
         let checked = input.checked();
@@ -1110,8 +1139,12 @@ struct Machine {
     output: Vec<f32>,
     audio_port: Option<MessagePort>,
     tick_pending: bool,
-    probe: Option<Vec<f32>>,
+    probe: Option<LatencyProbe>,
     lifted: bool,
+}
+struct LatencyProbe {
+    reference: Vec<f32>,
+    synthetic: bool,
 }
 fn queue_tick(machine: &mut Machine, port: &MessagePort) {
     if !machine.tick_pending && !machine.failed {
@@ -1141,7 +1174,7 @@ fn latency_status(scope: &DedicatedWorkerGlobalScope, message: &str) {
     post(scope, &data);
 }
 fn finish_measurement(machine: &mut Machine, data: &JsValue, scope: &DedicatedWorkerGlobalScope) {
-    let Some(reference) = machine.probe.take() else {
+    let Some(probe) = machine.probe.take() else {
         return;
     };
     // The receiver was down before the test. Restore the real hook input before
@@ -1155,8 +1188,11 @@ fn finish_measurement(machine: &mut Machine, data: &JsValue, scope: &DedicatedWo
     let mic = Float32Array::new(&get(data, "micRecording")).to_vec();
     let processed = Float32Array::new(&get(data, "processedRecording")).to_vec();
     let dropped = u32::from(machine.input_drops != machine.probe_input_drops);
-    match latency::measure(&reference, &mic, &processed, machine.rate,
+    match latency::measure(&probe.reference, &mic, &processed, machine.rate,
         (get(data, "underruns").as_f64().unwrap_or(1.) as u32).saturating_add(dropped)) {
+        Ok(result) if probe.synthetic => latency_status(scope, &format!(
+            "Software delay ≈{:.1} ms through the current firmware mode. Five probes, {:.1} ms spread, {:.0}% match. Excludes mic and speaker hardware.",
+            result.processing_ms, result.spread_ms, result.confidence*100.)),
         Ok(result) => latency_status(scope, &format!(
             "Measured ≈{:.1} ms mic → speaker, including the air path. Device loop {:.1} ms + app/firmware {:.1} ms. Five probes; spread {:.1} ms; match {:.0}%. This measures the current effect only.",
             result.total_ms(), result.device_ms, result.processing_ms, result.spread_ms, result.confidence*100.)),
@@ -1571,12 +1607,17 @@ pub async fn start_worker(firmware_url: String) -> Result<(), JsValue> {
                     latency_status(&scope_error, "Let the phone finish starting, stop MIDI playback and replace the receiver before measuring.");
                     return Ok(());
                 }
-                let probe = latency::probe(m.rate);
+                let synthetic = get(&d, "synthetic").is_truthy();
+                let probe = LatencyProbe {
+                    reference: latency::probe(m.rate),
+                    synthetic,
+                };
                 m.cpu.handset(true)?;
                 let message = Object::new();
-                let audio = Float32Array::from(probe.as_slice());
+                let audio = Float32Array::from(probe.reference.as_slice());
                 let transfer = Array::of1(audio.buffer().as_ref());
                 set(&message, "probe", audio);
+                set(&message, "synthetic", synthetic);
                 m.audio_port
                     .as_ref()
                     .ok_or("Audio port unavailable")?

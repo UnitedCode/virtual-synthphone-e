@@ -84,7 +84,7 @@ fn sample_interrupt(cpu: &mut Processor, levels: &mut [u32; 5], n: usize, assert
 }
 /// Original, unmodified ARM image for consumers building the Synthphone UI.
 pub fn reference_image() -> &'static [u8] {
-    include_bytes!("../../firmware/synthphone.bin")
+    include_bytes!(env!("SYNTHPHONE_IMAGE"))
 }
 #[cfg(all(target_arch = "wasm32", feature = "lab"))]
 mod browser;
@@ -455,7 +455,7 @@ pub fn floating_probe(steps: u32) -> Result<Vec<u32>, String> {
 mod tests {
     use super::*;
     fn render(mic: bool, channel: Option<u8>, translated: bool) -> Vec<f32> {
-        let mut f = Firmware::new(include_bytes!("../../firmware/synthphone.bin")).unwrap();
+        let mut f = Firmware::new(reference_image()).unwrap();
         f.translated = translated;
         f.input(
             &(0..12_000)
@@ -567,7 +567,7 @@ mod tests {
     }
     #[test]
     fn physical_keypad_scan_drives_the_firmware_screen() {
-        let mut f = Firmware::new(include_bytes!("../../firmware/synthphone.bin")).unwrap();
+        let mut f = Firmware::new(reference_image()).unwrap();
         f.run(3_000_000).unwrap();
         let before = f.oled();
         f.key(10, true).unwrap();

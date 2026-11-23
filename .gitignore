@@ -1,5 +1,6 @@
 /target/
 /dist/
+/firmware-build/
 /results/
 **/target/
 .DS_Store

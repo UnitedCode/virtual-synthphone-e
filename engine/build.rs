@@ -158,12 +158,20 @@ fn terminal(i: &Instruction) -> bool {
     )
 }
 fn main() {
-    println!("cargo:rerun-if-changed=../firmware/synthphone.bin");
+    let image_path = env::var_os("SYNTHPHONE_IMAGE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("../firmware/synthphone.bin"))
+        .canonicalize()
+        .expect("Missing ARM firmware image");
+    println!("cargo:rerun-if-changed={}", image_path.display());
+    println!("cargo:rustc-env=SYNTHPHONE_IMAGE={}", image_path.display());
+    println!("cargo:rerun-if-env-changed=SYNTHPHONE_IMAGE");
+    println!("cargo:rerun-if-env-changed=SYNTHPHONE_HOTSPOTS");
     println!("cargo:rerun-if-changed=fp_lift.rs");
     println!("cargo:rerun-if-changed=hotspots.txt");
     println!("cargo:rerun-if-changed=fallback-hotspots.txt");
     println!("cargo:rerun-if-env-changed=VD_INTERPRETER_PROFILE");
-    let image = fs::read("../firmware/synthphone.bin").unwrap();
+    let image = fs::read(image_path).unwrap();
     let hash = Sha256::digest(&image);
     let mut out = format!("pub const IMAGE_HASH:[u8;32]={:?};\n", hash.as_slice());
     if env::var("VD_INTERPRETER_PROFILE").as_deref() == Ok("1") {
@@ -182,7 +190,13 @@ fn main() {
     let c = Processor::new();
     let mut offset = 0;
     let mut count = 0;
-    let counts = fs::read_to_string("hotspots.txt").unwrap();
+    let hotspots = env::var_os("SYNTHPHONE_HOTSPOTS")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("hotspots.txt"));
+    println!("cargo:rerun-if-changed={}", hotspots.display());
+    let counts = fs::read_to_string(hotspots).unwrap();
+    let expected = format!("# SHA-256: {hash:x};");
+    assert!(counts.lines().any(|line| line.starts_with(&expected)), "ARM hot spots do not match the firmware image. Regenerate the profile before building the browser engine.");
     let mut visits = std::collections::BTreeMap::new();
     for line in counts.lines().filter(|s| !s.starts_with('#')) {
         let mut fields = line.split_whitespace();
@@ -370,9 +384,11 @@ fn main() {
     // These preserve arbitrary IT state, branches, MMIO and exception behavior.
     // They do not replace guest routines or implement host DSP algorithms.
     let mut scores = visits.clone();
-    for line in fs::read_to_string("fallback-hotspots.txt")
-        .unwrap()
+    let fallback = fs::read_to_string("fallback-hotspots.txt").unwrap();
+    let matching_fallback = fallback.lines().any(|line| line.starts_with(&expected));
+    for line in fallback
         .lines()
+        .filter(|_| matching_fallback)
         .filter(|l| !l.starts_with('#'))
     {
         let mut fields = line.split_whitespace();
