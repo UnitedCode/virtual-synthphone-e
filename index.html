@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#211b17">
   <title>Virtual Synthphone E</title>
-  <link rel="stylesheet" href="phone.334906590af3f39bcd69a580f845203cfc9b7d12ae08ba14caf4ea0ebcdc2542.css">
+  <link rel="stylesheet" href="phone.8d61dba28fe974116c93b1e74dec5196ebce935fb70573daa81f8b8f33cdc2a8.css">
   <link rel="preload" href="assets/phone-base.webp" as="image">
   <link rel="preload" href="assets/receiver.webp" as="image">
 </head>
@@ -26,7 +26,7 @@
         <label class="check"><input id="tone" type="checkbox" disabled> Test voice · 220 Hz</label>
         <button id="latency-test" disabled>Measure mic delay</button>
         <p id="latency-status" role="status">Speakers + live mic required. Keep the receiver down. Plays five quiet probes; audio stays local. Use Dry for the baseline.</p>
-        <p id="mic-device"></p>
+        <p id="mic-device" role="status"></p>
         <p id="file-status">Drop a .mid file here.</p>
         <p id="midi-status" role="status"></p>
       </div>
@@ -76,6 +76,6 @@
     <details class="engine"><summary>Engine</summary><div class="drawer"><p id="persistence">Settings stay on this device.</p><p id="performance">Phone off.</p><p id="error-detail"></p><p>Audio stays on your computer. Timing is not hardware calibrated.</p><a href="lab.html">Audio verification lab</a> · <a href="https://github.com/UnitedCode/virtual-synthphone-e">Source</a></div></details>
     <span class="maker">0rwx × AI made</span>
   </footer>
-  <script id="runtime" data-worker="worker.334906590af3f39bcd69a580f845203cfc9b7d12ae08ba14caf4ea0ebcdc2542.js" data-worklet="audio-worklet.334906590af3f39bcd69a580f845203cfc9b7d12ae08ba14caf4ea0ebcdc2542.js" type="module">import init from './phone.334906590af3f39bcd69a580f845203cfc9b7d12ae08ba14caf4ea0ebcdc2542.js';init().catch(()=>{document.getElementById('status').textContent='Could not load the phone. Reload to try again.';});</script>
+  <script id="runtime" data-worker="worker.8d61dba28fe974116c93b1e74dec5196ebce935fb70573daa81f8b8f33cdc2a8.js" data-worklet="audio-worklet.8d61dba28fe974116c93b1e74dec5196ebce935fb70573daa81f8b8f33cdc2a8.js" type="module">import init from './phone.8d61dba28fe974116c93b1e74dec5196ebce935fb70573daa81f8b8f33cdc2a8.js';init().catch(()=>{document.getElementById('status').textContent='Could not load the phone. Reload to try again.';});</script>
 </body>
 </html>
