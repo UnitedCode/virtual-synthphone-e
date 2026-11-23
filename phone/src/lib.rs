@@ -114,9 +114,17 @@ fn bind_dial(id: &'static str, encoder: bool) {
     let state: Rc<RefCell<Option<DialDrag>>> = Rc::new(RefCell::new(None));
     let down = state.clone();
     bind(el(id).as_ref(), "pointerdown", move |e| {
-        e.prevent_default();
         let p: PointerEvent = e.unchecked_into();
         let target: Element = p.current_target().unwrap().unchecked_into();
+        if !encoder
+            && window()
+                .and_then(|window| window.get_computed_style(&target).ok().flatten())
+                .and_then(|style| style.get_property_value("--native-gain").ok())
+                .is_some_and(|value| value.trim() == "1")
+        {
+            return;
+        }
+        p.prevent_default();
         let _ = target.set_pointer_capture(p.pointer_id());
         *down.borrow_mut() = Some(DialDrag {
             origin: p.client_y(),
