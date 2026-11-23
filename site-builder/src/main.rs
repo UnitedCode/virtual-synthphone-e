@@ -89,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for file in [
         "mobile-original-photo.webp",
         "mobile-original-receiver.webp",
-        "mobile-original-cradle.webp",
+        "mobile-photographed-cradle.webp",
         "mobile-encoder-wheel.webp",
         "phone-base.webp",
         "receiver.webp",
