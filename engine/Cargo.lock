@@ -308,11 +308,12 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "virtual-daisy"
-version = "0.1.1"
-source = "git+https://github.com/UnitedCode/virtual-daisy.git?rev=323c4c77a1210600425f767673d1d9309b7d26f4#323c4c77a1210600425f767673d1d9309b7d26f4"
+version = "0.2.0"
+source = "git+https://github.com/UnitedCode/virtual-daisy.git?rev=a1c4b61c20355d54d9ca608331f307bae67a4a2e#a1c4b61c20355d54d9ca608331f307bae67a4a2e"
 dependencies = [
  "hound",
  "sha2",
+ "zmu_cortex_m",
 ]
 
 [[package]]
@@ -396,7 +397,7 @@ dependencies = [
 [[package]]
 name = "zmu_cortex_m"
 version = "0.1.0"
-source = "git+https://github.com/UnitedCode/virtual-daisy.git?rev=323c4c77a1210600425f767673d1d9309b7d26f4#323c4c77a1210600425f767673d1d9309b7d26f4"
+source = "git+https://github.com/UnitedCode/virtual-daisy.git?rev=a1c4b61c20355d54d9ca608331f307bae67a4a2e#a1c4b61c20355d54d9ca608331f307bae67a4a2e"
 dependencies = [
  "byteorder",
  "enum-set",

@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
+mod firmware;
 mod pages;
 mod runtime;
 mod serve;
@@ -18,10 +19,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../engine")
         .canonicalize()?;
-    let dist = engine.parent().unwrap().join("dist");
-    if env::args().nth(1).as_deref() == Some("serve") {
+    let root = engine.parent().unwrap();
+    let dist = root.join("dist");
+    let mode = env::args().nth(1);
+    if mode.as_deref() == Some("serve") {
         serve::serve(&dist)?;
         return Ok(());
+    }
+    if mode.as_deref() == Some("pages") {
+        return pages::publish(root);
     }
     let target = env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
@@ -30,6 +36,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         target
     } else {
         env::current_dir()?.join(target)
+    };
+    let image = match mode.as_deref() {
+        Some("build-firmware") => {
+            let source = env::args_os()
+                .nth(2)
+                .ok_or("Usage: build-firmware <firmware checkout>")?;
+            firmware::Image::build(root, Path::new(&source), &target)?
+        }
+        Some("build") | None => firmware::Image::fixture(root)?,
+        _ => return Err("Use build, build-firmware, serve or pages".into()),
     };
     run(Command::new("cargo")
         .current_dir(&engine)
@@ -41,6 +57,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "wasm32-unknown-unknown",
         ])
         .env("CARGO_TARGET_DIR", &target)
+        .env("SYNTHPHONE_IMAGE", &image.path)
+        .env("SYNTHPHONE_HOTSPOTS", &image.hotspots)
         .env("CARGO_INCREMENTAL", "0"))?;
     fs::create_dir_all(&dist)?;
     run(Command::new("wasm-bindgen")
@@ -79,11 +97,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             dist.join("assets").join(file),
         )?;
     }
-    fs::copy(
-        engine.join("../firmware/synthphone.bin"),
-        dist.join("synthphone.bin"),
-    )?;
+    image.copy_to(&dist)?;
     runtime::version(&dist)?;
+    runtime::assets(&dist)?;
     fs::write(dist.join(".nojekyll"), [])?;
     let revision = Command::new("git")
         .current_dir(dist.parent().unwrap())
@@ -94,8 +110,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     fs::write(dist.join("source-revision.txt"), revision.stdout)?;
     println!("Static browser site built at {}", dist.display());
-    if env::args().nth(1).as_deref() == Some("pages") {
-        pages::publish(dist.parent().unwrap(), &dist)?;
-    }
     Ok(())
 }

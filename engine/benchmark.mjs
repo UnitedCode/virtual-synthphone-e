@@ -14,7 +14,8 @@ const { default: init, Firmware } = await import(pathToFileURL(path.resolve(dire
 await init({ module_or_path: fs.readFileSync(path.join(directory, runtime['engine_bg.wasm'] || 'engine_bg.wasm')) });
 const bytes = fs.readFileSync(fixture);
 const input = new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4);
-const f = new Firmware(fs.readFileSync(firmwarePath || new URL('../firmware/synthphone.bin', import.meta.url)));
+const image = firmwarePath || (runtime['synthphone.bin'] && path.join(directory, runtime['synthphone.bin'])) || new URL('../firmware/synthphone.bin', import.meta.url);
+const f = new Firmware(fs.readFileSync(image));
 f.handset(true);
 function step() {
   if (f.pending_input() < 4096) f.input_stereo(input);

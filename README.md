@@ -1,8 +1,8 @@
 # Virtual Synthphone E
 
-The virtual instrument has its own firmware, photographed controls, audio host,
-MIDI routing and static website. [Virtual Daisy](https://github.com/UnitedCode/virtual-daisy)
-provides its reusable board models and ARM CPU core as pinned Git dependencies.
+The virtual instrument runs the physical Synthphone E firmware with photographed
+controls, browser audio and MIDI routing. [Virtual Daisy](https://github.com/UnitedCode/virtual-daisy)
+provides the reusable board models and ARM CPU core as pinned Git dependencies.
 This application previously lived in that repository's `web` directory; its Git
 history and public mirror were retained when it moved here.
 
@@ -21,6 +21,10 @@ The connection needs no virtual MIDI driver or Web MIDI permission.
 the physical speaker/mic loop and the current firmware effect separately.
 Start with Dry. Effects that change the probe too much return an inconclusive
 result. Recordings stay in memory; they are never uploaded or saved.
+
+**Without a mic:** choose **I/O → Measure software delay**. A silent probe
+passes through the browser audio path and the real ARM firmware. The result
+excludes the mic, speakers and their system buffers.
 
 The Rust WebAssembly backend boots the real ARM firmware. Its UI, OLED, synth,
 vocal effects and saved settings run on that CPU. The photo layers preserve the
@@ -48,14 +52,29 @@ for visitors.
 
 For agent work, reuse an existing compatible `CARGO_TARGET_DIR`.
 
-To publish merged source to GitHub Pages, sign in with `gh` and run:
+GitHub Pages rebuilds on app changes and checks firmware `main` hourly. The
+workflow builds the hardware repository's normal release target, boots those
+exact ARM bytes in the emulator, and tests the audio path before deploying.
+See the live [firmware revision](https://unitedcode.github.io/virtual-synthphone-e/firmware-revision.txt)
+and [image hash](https://unitedcode.github.io/virtual-synthphone-e/firmware-sha256.txt).
+
+To request a production rebuild now, sign in with `gh` and run:
 
 ```sh
 CARGO_TARGET_DIR=target cargo run --manifest-path site-builder/Cargo.toml -- pages
 ```
 
-This builds locally, publishes the runtime bundle to `gh-pages`, and enables
-Pages. It requires a clean checkout at the current `origin/main` commit.
+To build the same bundle from a clean firmware checkout locally, install the
+`thumbv7em-none-eabihf` target and `llvm-tools-preview` component, then run:
+
+```sh
+CARGO_TARGET_DIR=target cargo run --manifest-path site-builder/Cargo.toml -- build-firmware /path/to/synth-phone-e-v2-rust
+```
+
+Plain `build` uses the checked-in regression image. `build-firmware` compiles
+the original `app` binary with the firmware's target configuration and lockfile.
+If the ARM bytes change, the builder profiles the new image before compiling
+the browser engine. It never applies hot instruction addresses from an older image.
 
 </details>
 

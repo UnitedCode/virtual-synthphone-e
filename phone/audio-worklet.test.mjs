@@ -67,3 +67,18 @@ test('a playback recovery during calibration invalidates its result', () => {
   render();
   assert.equal(sent.find(m=>m.latencyResult).underruns,1);
 });
+test('software calibration sends the probe through capture while speakers stay silent', () => {
+  const {send,sent,render}=worklet();
+  const probe=Float32Array.from({length:256},(_,i)=>i/4096);
+  send({audio:new Float32Array(512).fill(0.25)});
+  send({probe,synthetic:true});
+  assert.ok(render().every(v=>v===0));
+  assert.ok(render().every(v=>v===0));
+  const packets=sent.filter(m=>m.mic);
+  assert.deepEqual(packets[0].mic,probe.slice(0,128));
+  assert.deepEqual(packets[1].mic,probe.slice(128));
+  const result=sent.find(m=>m.latencyResult);
+  assert.deepEqual(result.micRecording,probe);
+  assert.ok(result.processedRecording.every(v=>v===0.25));
+  assert.ok(render().every(v=>v===0),'monitoring remains muted until the test finishes');
+});

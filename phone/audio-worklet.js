@@ -44,6 +44,7 @@ class FirmwareAudio extends AudioWorkletProcessor {
       if (data.probe) {
         this.test = {
           reference: data.probe,
+          synthetic: data.synthetic === true,
           mic: new Float32Array(data.probe.length),
           processed: new Float32Array(data.probe.length),
           at: 0, underruns: this.underruns, resyncs: this.resyncs
@@ -64,6 +65,8 @@ class FirmwareAudio extends AudioWorkletProcessor {
     const input = inputs[0]?.[0];
     if (!this.playing && this.queued >= this.prebufferFrames && this.queued) this.playing = true;
     for (let i = 0; i < out.length; i++) {
+      const test = this.test;
+      const sample = test?.synthetic ? test.reference[test.at] : (input?.[i] ?? 0);
       if (this.playing && this.queue.length) {
         const block = this.queue[0];
         out[i] = block[this.offset++];
@@ -79,7 +82,7 @@ class FirmwareAudio extends AudioWorkletProcessor {
           this.underruns++;
         }
       }
-      if (this.enabled) this.capture[this.at++] = input ? input[i] : 0;
+      if (this.enabled) this.capture[this.at++] = sample;
       if (this.enabled && this.at === this.capture.length) {
         this.port.postMessage({ mic: this.capture, underruns: this.underruns,
           queuedFrames: this.queued, resyncs: this.resyncs, capturedAt: Date.now() }, [this.capture.buffer]);
@@ -88,11 +91,12 @@ class FirmwareAudio extends AudioWorkletProcessor {
       }
       // Calibration records the real mic and the normal firmware render on the
       // same frame clock. Only the quiet probe reaches the speakers: no feedback.
-      if (this.test) {
-        const t = this.test;
-        t.mic[t.at] = input ? input[i] : 0;
+      if (test) {
+        const t = test;
+        t.mic[t.at] = sample;
         t.processed[t.at] = out[i];
-        out[i] = t.reference[t.at++];
+        out[i] = t.synthetic ? 0 : t.reference[t.at];
+        t.at++;
         if (t.at === t.reference.length) {
           this.port.postMessage({ latencyResult: true, micRecording: t.mic,
             processedRecording: t.processed,
