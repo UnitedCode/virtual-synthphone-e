@@ -88,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(dist.join("assets"))?;
     for file in [
         "keypad-restored.webp",
-        "mobile-encoder.webp",
+        "mobile-encoder-wheel.webp",
         "mobile-handset.webp",
         "mobile-mic-knob.webp",
         "phone-base.webp",
