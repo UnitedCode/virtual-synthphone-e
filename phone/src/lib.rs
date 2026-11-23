@@ -277,6 +277,113 @@ fn button(index: u8, pressed: bool) {
         let _ = e.class_list().toggle_with_force("pressed", pressed);
     }
 }
+
+#[derive(Clone, Copy)]
+struct HandsetDrag {
+    pointer: i32,
+    origin: (f64, f64),
+    moved: bool,
+}
+
+impl HandsetDrag {
+    fn offset(self, event: &PointerEvent) -> (f64, f64) {
+        (
+            f64::from(event.client_x()) - self.origin.0,
+            f64::from(event.client_y()) - self.origin.1,
+        )
+    }
+}
+
+fn move_receiver(x: f64, y: f64) {
+    let receiver: HtmlElement = el("mobile-receiver").unchecked_into();
+    let style = receiver.style();
+    let _ = style.set_property("--receiver-x", &format!("{x}px"));
+    let _ = style.set_property("--receiver-y", &format!("{y}px"));
+}
+
+fn bind_handset() {
+    let handset = el("handset");
+    let drag = Rc::new(Cell::new(None::<HandsetDrag>));
+    let ignore_click = Rc::new(Cell::new(false));
+    let gesture = drag.clone();
+    let ignored = ignore_click.clone();
+    bind(handset.as_ref(), "pointerdown", move |event| {
+        let event: PointerEvent = event.unchecked_into();
+        if event.button() != 0 || gesture.get().is_some() {
+            return;
+        }
+        ignored.set(false);
+        let can_drag = APP.with(|app| {
+            app.borrow()
+                .as_ref()
+                .is_some_and(|app| !app.lifted && !app.testing)
+        });
+        if !can_drag || el("mobile-receiver").get_bounding_client_rect().width() == 0. {
+            return;
+        }
+        event.prevent_default();
+        let target: Element = event.current_target().unwrap().unchecked_into();
+        let _ = target.set_pointer_capture(event.pointer_id());
+        let _ = target.class_list().add_1("dragging");
+        gesture.set(Some(HandsetDrag {
+            pointer: event.pointer_id(),
+            origin: (f64::from(event.client_x()), f64::from(event.client_y())),
+            moved: false,
+        }));
+    });
+
+    let gesture = drag.clone();
+    bind(handset.as_ref(), "pointermove", move |event| {
+        let event: PointerEvent = event.unchecked_into();
+        if let Some(mut active) = gesture
+            .get()
+            .filter(|drag| drag.pointer == event.pointer_id())
+        {
+            let (x, y) = active.offset(&event);
+            if !active.moved && x.hypot(y) > 4. {
+                active.moved = true;
+                gesture.set(Some(active));
+            }
+            move_receiver(x, y);
+        }
+    });
+
+    for name in ["pointerup", "pointercancel", "lostpointercapture"] {
+        let gesture = drag.clone();
+        let ignored = ignore_click.clone();
+        bind(handset.as_ref(), name, move |event| {
+            let event: PointerEvent = event.unchecked_into();
+            let Some(active) = gesture
+                .get()
+                .filter(|drag| drag.pointer == event.pointer_id())
+            else {
+                return;
+            };
+            gesture.set(None);
+            let (x, y) = active.offset(&event);
+            let distance = x.hypot(y);
+            let _ = el("handset").class_list().remove_1("dragging");
+            ignored.set(name != "pointerup" || active.moved || distance > 4.);
+            if name == "pointerup"
+                && distance >= 28.
+                && !el("handset").class_list().contains("lifted")
+            {
+                lift();
+            }
+            if !el("handset").class_list().contains("lifted") {
+                move_receiver(0., 0.);
+            }
+        });
+    }
+
+    bind(handset.as_ref(), "click", move |event| {
+        let event: MouseEvent = event.unchecked_into();
+        if !ignore_click.replace(false) || event.detail() == 0 {
+            lift();
+        }
+    });
+}
+
 fn lift() {
     APP.with(|s| {
         if let Some(a) = s.borrow_mut().as_mut() {
@@ -284,6 +391,9 @@ fn lift() {
                 return;
             }
             a.lifted = !a.lifted;
+            if !a.lifted {
+                move_receiver(0., 0.);
+            }
             let m = object("handset");
             set(&m, "value", a.lifted);
             let _ = a.worker.post_message(&m);
@@ -459,7 +569,8 @@ fn power_off() {
     let _ = el("phone").class_list().remove_2("powered", "offhook");
     let _ = el("power").set_attribute("data-on", "false");
     let _ = el("power").set_attribute("aria-label", "Power on");
-    let _ = el("handset").class_list().remove_1("lifted");
+    let _ = el("handset").class_list().remove_2("lifted", "dragging");
+    move_receiver(0., 0.);
     let _ = el("handset").set_attribute("aria-pressed", "false");
     let _ = el("handset").set_attribute("aria-label", "Lift handset");
     text("hook-status", "RECEIVER ON HOOK");
@@ -1041,7 +1152,7 @@ pub fn start() {
             }
         });
     });
-    bind(el("handset").as_ref(), "click", |_| lift());
+    bind_handset();
     for i in 0..12 {
         let key = doc()
             .query_selector(&format!("[data-key='{i}']"))
