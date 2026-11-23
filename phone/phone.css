@@ -100,16 +100,20 @@ footer{position:absolute;z-index:8;bottom:12px;left:20px;right:20px;display:flex
   .body-photo{filter:none}
   .cord-tail,.photo-control>img{display:none}
   #handset{
-    inset:0 auto auto 5%;width:min(34%,122px);height:min(44px,11.8%);
-    display:flex;align-items:center;gap:6px;padding:0 4px;
+    position:relative;inset:auto;width:100%;height:auto;min-height:48px;margin-bottom:4px;
+    display:flex;align-items:center;justify-content:center;gap:10px;padding:0 12px;
     clip-path:none;transform:none;touch-action:manipulation;
+    border:1px solid #6b473f;border-radius:6px;background:#302420;color:#f2ddd1;
+    font:650 14px/1.2 system-ui,sans-serif;
   }
   #handset::before{
-    content:"";width:8px;height:12px;flex:none;border:1px solid #410f12;
-    border-radius:2px;background:linear-gradient(#453a33,#24211c);box-shadow:0 1px #c7494e88;
+    content:"";width:9px;height:14px;flex:none;border:1px solid #181210;
+    border-radius:2px;background:#544741;box-shadow:0 1px #95756988;
   }
-  #handset.lifted::before{background:#b99b72;box-shadow:inset 0 -3px #4d3b2b,0 1px #c7494e88}
-  #handset .mobile-label{white-space:nowrap}
+  #handset:disabled{color:#b9a398}
+  #handset.lifted{background:#4a2826;border-color:#89574e}
+  #handset.lifted::before{background:#c8aa80;box-shadow:inset 0 -3px #66503a,0 1px #95756988}
+  #handset .mobile-label{display:inline;white-space:nowrap}
   .handset.lifted .pick-up,.handset:not(.lifted) .hang-up{display:none}
 
   /* This grid follows the four rows of key wells in keypad-restored.webp. */
@@ -146,7 +150,7 @@ footer{position:absolute;z-index:8;bottom:12px;left:20px;right:20px;display:flex
   }
   #encoder:active .panel-wheel,.mic-dial.dragging .panel-wheel{filter:brightness(.84)}
   #handset:focus-visible,#encoder:focus-visible,#enc-down:focus-visible,#enc-up:focus-visible,.mic-dial:focus-within .panel-wheel{outline:2px solid #e5cc9d;outline-offset:2px}
-  #handset .mobile-label,.surface-controls .mobile-label,#gain-value{
+  .surface-controls .mobile-label,#gain-value{
     display:inline;color:#f2ddd1;font:650 11px/1.2 system-ui,sans-serif;text-shadow:0 1px #4c1011;
   }
   .mic-dial{

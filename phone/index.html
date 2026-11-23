@@ -44,11 +44,11 @@
   </nav>
   <main id="workbench" class="workbench" aria-label="Synthphone E instrument">
     <div id="phone" class="phone">
+      <button id="handset" class="handset photo-control" aria-label="Lift handset" aria-pressed="false" title="Pick up / hang up" disabled>
+        <img src="assets/receiver.webp" alt="" loading="lazy" draggable="false">
+        <span class="mobile-label" aria-hidden="true"><span class="pick-up">Lift handset</span><span class="hang-up">Hang up</span></span>
+      </button>
       <div class="instrument-face">
-        <button id="handset" class="handset photo-control" aria-label="Lift handset" aria-pressed="false" title="Pick up / hang up" disabled>
-          <img src="assets/receiver.webp" alt="" loading="lazy" draggable="false">
-          <span class="mobile-label" aria-hidden="true"><span class="pick-up">Lift handset</span><span class="hang-up">Hang up</span></span>
-        </button>
         <picture class="face-photo">
           <source media="(max-width: 700px), (max-width: 950px) and (max-height: 500px) and (pointer: coarse)" srcset="assets/keypad-restored.webp">
           <img class="body-photo" src="assets/phone-base.webp" width="1306" height="1205" alt="The red Synthphone E" draggable="false">
