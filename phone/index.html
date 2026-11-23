@@ -34,7 +34,7 @@
       <summary aria-label="Playing guide">?</summary>
       <div class="drawer guide">
         <p class="desktop-guide">Click the receiver to pick up. Drag the upper dial to turn it. Click to switch notes/effects; double-click for menu. The lower dial sets mic level.</p>
-        <p class="mobile-guide">Tap the handset to pick up. Drag the encoder up or down to turn it, or use − and +. Tap it to switch notes/effects or tap twice for the menu. Drag the mic knob up or down to set gain.</p>
+        <p class="mobile-guide">Tap the handset to pick up. Drag around the rim to turn the encoder, or use − and +. Tap its center to switch notes/effects or tap twice for the menu. Drag the mic knob up or down to set gain.</p>
         <p>In effects, 0 cycles modes.</p>
         <p><kbd>1–9</kbd> <kbd>*</kbd> <kbd>0</kbd> <kbd>#</kbd> keypad<br><kbd>← →</kbd> encoder · <kbd>Enter</kbd> press<br><kbd>Space</kbd> receiver</p>
         <p>MIDI channel 1: vocals<br>Channel 2: synth</p>
@@ -74,7 +74,7 @@
       <div class="surface-controls">
         <div class="encoder-controls" role="group" aria-label="Encoder controls">
           <button id="enc-down" class="assistive" aria-label="Turn encoder counterclockwise" disabled>−</button>
-          <button id="encoder" class="dial photo-control" aria-label="Encoder" title="Drag to turn · click to press · double-click for menu" disabled><img src="assets/phone-base.webp" alt="" loading="lazy" draggable="false"><span class="mobile-label" aria-hidden="true">Encoder</span></button>
+          <button id="encoder" class="dial photo-control" aria-label="Encoder" title="Drag to turn · tap to press · double-tap for menu" disabled><img src="assets/phone-base.webp" alt="" loading="lazy" draggable="false"><span id="encoder-wheel" aria-hidden="true"></span><span class="mobile-label" aria-hidden="true">Encoder</span></button>
           <button id="enc-up" class="assistive" aria-label="Turn encoder clockwise" disabled>+</button>
         </div>
         <div id="mic-dial" class="mic-dial"><label class="mobile-label" for="gain">Mic level</label><input id="gain" type="range" min="0" max="2" step="0.01" value="1" aria-label="Microphone level" title="Drag up or down to set microphone level" disabled><output id="gain-value" for="gain">100%</output></div>

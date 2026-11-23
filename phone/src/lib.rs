@@ -1,6 +1,10 @@
 //! Phone controls and browser I/O. Instrument behaviour belongs to the ARM image.
 use js_sys::{Array, Float32Array, Function, Object, Reflect, Uint32Array, Uint8Array};
-use std::{cell::RefCell, collections::VecDeque, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::VecDeque,
+    rc::Rc,
+};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use web_sys::*;
@@ -97,12 +101,31 @@ fn bind(target: &EventTarget, name: &str, f: impl FnMut(Event) + 'static) {
         .unwrap();
     c.forget();
 }
-#[derive(Clone, Copy)]
 struct DialDrag {
-    origin: i32,
-    last: i32,
+    pointer: i32,
+    origin: (i32, i32),
+    last_y: i32,
     moved: bool,
+    turn: Option<controls::EncoderTurn>,
 }
+
+thread_local! {
+    static ENCODER_ANGLE: Cell<i64> = const { Cell::new(0) };
+}
+
+fn turn_encoder(steps: i32) {
+    ENCODER_ANGLE.with(|angle| {
+        let degrees =
+            angle.get() + i64::from(steps) * i64::from(controls::ENCODER_DEGREES_PER_STEP);
+        angle.set(degrees);
+        let wheel: HtmlElement = el("encoder-wheel").unchecked_into();
+        let _ = wheel
+            .style()
+            .set_property("--wheel-angle", &format!("{degrees}deg"));
+    });
+    command("encoder", "steps", steps);
+}
+
 fn gain_changed() {
     let input: HtmlInputElement = el("gain").unchecked_into();
     let value = input.value_as_number();
@@ -115,39 +138,62 @@ fn bind_dial(id: &'static str, encoder: bool) {
     let down = state.clone();
     bind(el(id).as_ref(), "pointerdown", move |e| {
         let p: PointerEvent = e.unchecked_into();
-        let target: Element = p.current_target().unwrap().unchecked_into();
-        if !encoder
-            && window()
-                .and_then(|window| window.get_computed_style(&target).ok().flatten())
-                .and_then(|style| style.get_property_value("--native-gain").ok())
-                .is_some_and(|value| value.trim() == "1")
-        {
+        if p.button() != 0 || down.borrow().is_some() {
             return;
         }
         p.prevent_default();
+        let target: Element = p.current_target().unwrap().unchecked_into();
         let _ = target.set_pointer_capture(p.pointer_id());
+        let origin = (p.client_x(), p.client_y());
+        let turn = encoder
+            .then(|| el("encoder-wheel").get_bounding_client_rect())
+            .filter(|rect| rect.width() > 0.)
+            .map(|rect| {
+                controls::EncoderTurn::new(
+                    (
+                        rect.x() + rect.width() * 0.5,
+                        rect.y() + rect.height() * 0.5,
+                    ),
+                    rect.width() * 0.17,
+                    (f64::from(origin.0), f64::from(origin.1)),
+                )
+            });
         *down.borrow_mut() = Some(DialDrag {
-            origin: p.client_y(),
-            last: p.client_y(),
+            pointer: p.pointer_id(),
+            origin,
+            last_y: origin.1,
             moved: false,
+            turn,
         });
     });
     let movement = state.clone();
     bind(el(id).as_ref(), "pointermove", move |e| {
         let p: PointerEvent = e.unchecked_into();
-        if let Some(drag) = movement.borrow_mut().as_mut() {
-            let delta = drag.last - p.client_y();
-            if (p.client_y() - drag.origin).abs() > 4 {
-                drag.moved = true;
+        if let Some(drag) = movement
+            .borrow_mut()
+            .as_mut()
+            .filter(|drag| drag.pointer == p.pointer_id())
+        {
+            let x = p.client_x();
+            let y = p.client_y();
+            drag.moved |= (y - drag.origin.1).abs() > 4
+                || (drag.turn.is_some() && (x - drag.origin.0).abs() > 4);
+            if !drag.moved {
+                return;
             }
-            if drag.moved && delta.abs() >= 4 {
-                let steps = delta / 4;
-                drag.last -= steps * 4;
+            let steps = if let Some(turn) = drag.turn.as_mut() {
+                turn.move_to((f64::from(x), f64::from(y)))
+            } else {
+                let steps = (drag.last_y - y) / 4;
+                drag.last_y -= steps * 4;
+                steps
+            };
+            if steps != 0 {
                 let _ = el(if encoder { "encoder" } else { "mic-dial" })
                     .class_list()
                     .add_1("dragging");
                 if encoder {
-                    command("encoder", "steps", steps);
+                    turn_encoder(steps);
                 } else {
                     let input: HtmlInputElement = el("gain").unchecked_into();
                     input.set_value_as_number(
@@ -160,8 +206,14 @@ fn bind_dial(id: &'static str, encoder: bool) {
     });
     for event in ["pointerup", "pointercancel", "lostpointercapture"] {
         let up = state.clone();
-        bind(el(id).as_ref(), event, move |_| {
-            if let Some(drag) = up.borrow_mut().take() {
+        bind(el(id).as_ref(), event, move |e| {
+            let p: PointerEvent = e.unchecked_into();
+            let mut state = up.borrow_mut();
+            if state
+                .as_ref()
+                .is_some_and(|drag| drag.pointer == p.pointer_id())
+            {
+                let drag = state.take().unwrap();
                 let _ = el(if encoder { "encoder" } else { "mic-dial" })
                     .class_list()
                     .remove_1("dragging");
@@ -997,18 +1049,14 @@ pub fn start() {
             bind(key.as_ref(), event, move |_| button(i, false));
         }
     }
-    bind(el("enc-down").as_ref(), "click", |_| {
-        command("encoder", "steps", -1)
-    });
-    bind(el("enc-up").as_ref(), "click", |_| {
-        command("encoder", "steps", 1)
-    });
+    bind(el("enc-down").as_ref(), "click", |_| turn_encoder(-1));
+    bind(el("enc-up").as_ref(), "click", |_| turn_encoder(1));
     bind_dial("encoder", true);
     bind_dial("gain", false);
     bind(el("encoder").as_ref(), "wheel", |e| {
         let e: WheelEvent = e.unchecked_into();
         e.prevent_default();
-        command("encoder", "steps", if e.delta_y() > 0. { 1 } else { -1 });
+        turn_encoder(if e.delta_y() > 0. { 1 } else { -1 });
     });
     bind(el("gain").as_ref(), "input", |_| {
         gain_changed();
@@ -1088,11 +1136,11 @@ pub fn start() {
                 match key.as_str() {
                     "ArrowLeft" | "ArrowDown" if down => {
                         e.prevent_default();
-                        command("encoder", "steps", -1);
+                        turn_encoder(-1);
                     }
                     "ArrowRight" | "ArrowUp" if down => {
                         e.prevent_default();
-                        command("encoder", "steps", 1);
+                        turn_encoder(1);
                     }
                     "Enter" => {
                         e.prevent_default();
