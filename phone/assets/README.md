@@ -42,14 +42,19 @@ handwritten labels, keypad, and display surround. The built-in imagegen tool
 reconstructed only the cradle area hidden behind the receiver. The moving
 `mobile-receiver-lift.webp` layer uses the receiver pixels from the same photo.
 
-`mobile-zoom-base.webp` and `mobile-zoom-receiver.webp` are two parts of a
-built-in imagegen asset sheet using the owner's phone as the design reference.
-The base enlarges the keypad and display for mobile. The receiver sits above the
-cradle as a separate layer so it can follow the player's finger.
+`mobile-original-photo.webp` uses the owner's overhead photo, cropped to
+680×700 from (340, 880), with adjusted contrast and saturation. Mobile zoom
+positions the real keypad and OLED across the viewport. The existing rotary
+caps sit on the photographed face beside the OLED.
 
-<details><summary>Zoomed mobile phone image prompt</summary>
+`mobile-original-receiver.webp` masks the handset from those same photo pixels
+so it can follow the player's finger. `mobile-original-cradle.webp` blends in the
+upper patch from the built-in image edit while the handset is moving or lifted.
+The on-hook image uses the original photo across the entire instrument.
 
-> Make a photoreal product asset sheet for a mobile version of the attached real Synthphone E. The photo is a design reference for the vintage red phone, square dark keys, red plastic cradle, and worn workshop character. Reproportion the phone so the keypad and OLED are comfortably large and legible on a mobile phone. Show two separate, perfectly front-facing assets on transparent alpha, centered on the same vertical axis and lit from the upper left. On the top of the sheet put the entire detached glossy deep cherry-red curved handset, including both round ends, about 95% as wide as the base below it. No cord. Below it, with a clear completely transparent gap, put the matching empty red phone base, filling almost the width and the lower 74% of this portrait sheet. Orthographic camera, straight vertical sides, aligned square wells, restrained red molded plastic, faint real handling marks. The base has a short recessed cradle at the top, with two small molded supports positioned to seat the upper handset across it. Add a small handwritten masking-tape label “SYNTHPHONE-E” above the keypad and a tiny unlit indicator centered above the keys. The keypad fills 82% of the base width. Exactly 12 generous square smoked gray physical keycaps in four rows of three, with real dark key wells, a small consistent gap, and clear light ivory legends: row 1 “1”, “ABC” above “2”, “DEF” above “3”; row 2 “GHI” above “4”, “JKL” above “5”, “MNO” above “6”; row 3 “PRS” above “7”, “TUV” above “8”, “WXY” above “9”; row 4 “*”, “0”, “#”. Immediately below the keypad, a blank unlit dark glass OLED window centered on the phone and around 51% of the base width, exact horizontal 4:1 ratio. Leave clean red room to the left and right of that window for two front controls added in the app. Neither item touches the image edges or each other. No other text, no backgrounds, no knobs, no overlays, no illustration, no high-tech redesign, no checkerboard painted into the image, no ground shadows outside the isolated objects.
+<details><summary>Overhead cradle patch image prompt</summary>
+
+> This attached photo is the edit target for an empty-cradle patch. Remove only the horizontal red handset at the top (both ends and the handle that links them) and its short wire coming in from the left. Expose the molded red cradle underneath it, with the existing two square red supports continuing up to meet the back edge. Continue the beige tabletop behind either end where appropriate. Keep the cradle supports which are already visible below the handset in exactly the same positions, match the original imperfect warm photograph and its cherry red plastic. Keep the masking tape, handwritten words, keypad, OLED window, base, perspective, and all remaining pixels exactly where they are. No zoom, no reframing, no text changes, no extra controls, no graphic redesign. Only the pixels previously obscured by the handset will be used.
 
 </details>
 
