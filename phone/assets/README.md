@@ -21,3 +21,7 @@ existing K2 viewer's `assets/keyboard/wood-grain.png` texture.
 `src/photo_geometry.rs` places small, accessible hit areas over the photographic
 keycaps and encoder. Pressed keys show those same photo pixels, darkened and
 slightly depressed. The OLED canvas occupies the photographed display slot.
+
+`keypad-closeup.webp` is the owner's front-on keypad photograph, cropped to
+1150×1670 and WebP-encoded for the touch layout. The mobile hit areas and the
+same live OLED are positioned against this crop in `phone/phone.css`.
