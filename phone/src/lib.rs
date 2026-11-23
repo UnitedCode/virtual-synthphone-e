@@ -170,14 +170,14 @@ struct App {
     worker: Worker,
     context: AudioContext,
     node: AudioWorkletNode,
-    stream: Option<MediaStream>,
+    stream: Option<MicCapture>,
     lifted: bool,
     tone: Option<(OscillatorNode, GainNode)>,
     midi: JsValue,
     outputs: Vec<JsValue>,
     output_index: Option<usize>,
     input_handlers: Vec<MidiInputHandler>,
-    mic_request: bool,
+    mic_request: Option<Rc<()>>,
     testing: bool,
 }
 thread_local! {static APP:RefCell<Option<App>>=const{RefCell::new(None)};}
@@ -356,11 +356,7 @@ fn power_off() {
             for (input, _) in &a.input_handlers {
                 set(input, "onmidimessage", JsValue::NULL);
             }
-            if let Some(stream) = a.stream {
-                for track in stream.get_tracks().iter() {
-                    track.unchecked_into::<MediaStreamTrack>().stop();
-                }
-            }
+            drop(a.stream);
             let _ = a.context.close();
         }
     });
@@ -398,8 +394,7 @@ fn power_off() {
     text("hook-status", "RECEIVER ON HOOK");
     let tone: HtmlInputElement = el("tone").unchecked_into();
     tone.set_checked(false);
-    text("microphone", "MIC");
-    text("mic-device", "");
+    mic_status("MIC", "");
     text("status", "Off.");
     text("performance", "Phone off.");
     text(
@@ -538,44 +533,101 @@ async fn power() -> Result<(), JsValue> {
             outputs: vec![],
             output_index: None,
             input_handlers: vec![],
-            mic_request: false,
+            mic_request: None,
             testing: false,
         })
     });
     let _ = sample_rate;
     Ok(())
 }
-async fn microphone() -> Result<(), JsValue> {
-    let Some(context) = APP.with(|s| s.borrow().as_ref().map(|a| a.context.clone())) else {
-        return Ok(());
-    };
-    let existing = APP.with(|s| s.borrow().as_ref().is_some_and(|a| a.stream.is_some()));
-    if existing {
-        APP.with(|s| {
-            let mut s = s.borrow_mut();
-            let a = s.as_mut().unwrap();
-            if let Some(stream) = a.stream.take() {
-                for track in stream.get_tracks().iter() {
-                    track.unchecked_into::<MediaStreamTrack>().stop();
-                }
-            }
-        });
-        text("microphone", "MIC");
-        text("mic-device", "");
-        return Ok(());
+struct MicCapture {
+    stream: MediaStream,
+    source: Option<MediaStreamAudioSourceNode>,
+}
+
+impl Drop for MicCapture {
+    fn drop(&mut self) {
+        if let Some(source) = &self.source {
+            let _ = source.disconnect();
+        }
+        for track in self.stream.get_tracks().iter() {
+            track.unchecked_into::<MediaStreamTrack>().stop();
+        }
     }
-    let pending = APP.with(|s| {
-        let mut s = s.borrow_mut();
-        let a = s.as_mut().unwrap();
-        let pending = a.mic_request;
-        a.mic_request = true;
-        pending
+}
+
+fn active_mic_request(app: &App, request: &Rc<()>) -> bool {
+    app.mic_request
+        .as_ref()
+        .is_some_and(|id| Rc::ptr_eq(id, request))
+}
+
+fn mic_status(button: &str, status: &str) {
+    text("microphone", button);
+    text("mic-device", status);
+    el("microphone").set_attribute("title", status).ok();
+}
+
+fn finish_mic_request(request: &Rc<()>, result: Result<JsValue, JsValue>) {
+    // Own any returned tracks immediately. A late completion after a cancel,
+    // timeout or power cycle must release the device without connecting it.
+    let capture = result.and_then(|stream| {
+        Ok(MicCapture {
+            stream: stream.dyn_into()?,
+            source: None,
+        })
     });
-    if pending {
-        return Ok(());
-    }
-    text("microphone", "ALLOW MIC…");
-    text("mic-device", "Allow microphone access in your browser.");
+    APP.with(|app| {
+        let mut app = app.borrow_mut();
+        let Some(app) = app.as_mut().filter(|app| active_mic_request(app, request)) else {
+            return;
+        };
+        app.mic_request = None;
+        let attached = capture.and_then(|mut capture| {
+            let track: MediaStreamTrack = capture.stream.get_audio_tracks().get(0).dyn_into()?;
+            let label = track.label();
+            let source = app.context.create_media_stream_source(&capture.stream)?;
+            source.connect_with_audio_node(&app.node)?;
+            capture.source = Some(source);
+            app.stream = Some(capture);
+            Ok(label)
+        });
+        match attached {
+            Ok(label) if label.is_empty() => mic_status("MIC ON", "Microphone connected."),
+            Ok(label) => mic_status("MIC ON", &format!("Input: {label}")),
+            Err(error) => {
+                let message = match get(&error, "name").as_string().as_deref() {
+                    Some("NotAllowedError" | "SecurityError") => "Microphone access denied. Check this site's microphone permission.",
+                    Some("NotFoundError") => "No microphone found. Connect a microphone and try again.",
+                    Some("NotReadableError" | "AbortError") => "The browser couldn't open the microphone. Check your input device and try again.",
+                    _ => "Microphone unavailable. Check your browser and try again.",
+                };
+                mic_status("MIC", message);
+                web_sys::console::warn_1(&error);
+            }
+        }
+    });
+}
+
+fn microphone() {
+    let request = APP.with(|app| {
+        let mut app = app.borrow_mut();
+        let app = app.as_mut()?;
+        if app.stream.take().is_some() || app.mic_request.take().is_some() {
+            mic_status("MIC", "Microphone off.");
+            return None;
+        }
+        let request = Rc::new(());
+        app.mic_request = Some(Rc::clone(&request));
+        Some(request)
+    });
+    let Some(request) = request else {
+        return;
+    };
+    mic_status(
+        "CANCEL MIC",
+        "Allow microphone access in your browser. Click MIC again to cancel.",
+    );
     let options = MediaStreamConstraints::new();
     let audio = Object::new();
     for key in ["echoCancellation", "noiseSuppression", "autoGainControl"] {
@@ -589,69 +641,30 @@ async fn microphone() -> Result<(), JsValue> {
     set(&audio, "channelCount", mono);
     options.set_audio(&audio);
     options.set_video(&JsValue::FALSE);
-    let result = JsFuture::from(
-        window()
-            .unwrap()
-            .navigator()
-            .media_devices()?
-            .get_user_media_with_constraints(&options)?,
-    )
-    .await;
-    APP.with(|s| {
-        if let Some(a) = s
-            .borrow_mut()
-            .as_mut()
-            .filter(|a| Object::is(a.context.as_ref(), context.as_ref()))
-        {
-            a.mic_request = false;
-        }
-    });
-    let stream: MediaStream = match result {
-        Ok(stream) => stream.dyn_into()?,
-        Err(error) => {
-            if APP.with(|s| {
-                s.borrow()
-                    .as_ref()
-                    .is_some_and(|a| Object::is(a.context.as_ref(), context.as_ref()))
-            }) {
-                text("microphone", "MIC");
-                text(
-                    "mic-device",
-                    "Microphone unavailable. Check browser permission and the selected input.",
-                );
-            }
-            web_sys::console::warn_1(&error);
-            return Ok(());
-        }
+
+    let window = window().unwrap();
+    // Request directly in the click callback, before yielding to a future.
+    let capture = window
+        .navigator()
+        .media_devices()
+        .and_then(|devices| devices.get_user_media_with_constraints(&options));
+    let capture = match capture {
+        Ok(capture) => capture,
+        Err(error) => return finish_mic_request(&request, Err(error)),
     };
-    let attached = APP.with(|s| -> Result<bool, JsValue> {
-        let mut s = s.borrow_mut();
-        let Some(a) = s
-            .as_mut()
-            .filter(|a| Object::is(a.context.as_ref(), context.as_ref()) && a.stream.is_none())
-        else {
-            return Ok(false);
-        };
-        let source = a.context.create_media_stream_source(&stream)?;
-        source.connect_with_audio_node(&a.node)?;
-        a.stream = Some(stream.clone());
-        Ok(true)
-    });
-    if !matches!(attached, Ok(true)) {
-        for track in stream.get_tracks().iter() {
-            track.unchecked_into::<MediaStreamTrack>().stop();
+    let deadline = Rc::clone(&request);
+    let timeout = Closure::once_into_js(move || {
+        APP.with(|app| {
+        if let Some(app) = app.borrow_mut().as_mut().filter(|app| active_mic_request(app, &deadline)) {
+            app.mic_request = None;
+            mic_status("RETRY MIC", "The browser didn’t start the mic. Try again or open this page in your regular browser.");
+            el("patchbay").set_attribute("open", "").ok();
         }
-        return attached.map(|_| ());
-    }
-    text("microphone", "MIC ON");
-    if let Some(track) = stream.get_audio_tracks().iter().next() {
-        let label = get(&track, "label").as_string().unwrap_or_default();
-        text(
-            "mic-device",
-            &format!("Input: {label}. Browser latency hints are not a measurement."),
-        );
-    }
-    Ok(())
+    })
+    });
+    let _ = window
+        .set_timeout_with_callback_and_timeout_and_arguments_0(timeout.unchecked_ref(), 20_000);
+    spawn_local(async move { finish_mic_request(&request, JsFuture::from(capture).await) });
 }
 fn measure_latency() {
     let ready = APP.with(|s| {
@@ -968,13 +981,7 @@ pub fn start() {
     bind(el("gain").as_ref(), "input", |_| {
         gain_changed();
     });
-    bind(el("microphone").as_ref(), "click", |_| {
-        spawn_local(async {
-            if let Err(e) = microphone().await {
-                text("status", &format!("Microphone unavailable: {e:?}"));
-            }
-        })
-    });
+    bind(el("microphone").as_ref(), "click", |_| microphone());
     bind(el("latency-test").as_ref(), "click", |_| measure_latency());
     bind(el("tone").as_ref(), "change", |_| {
         let input: HtmlInputElement = el("tone").unchecked_into();
