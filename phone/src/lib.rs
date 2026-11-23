@@ -118,12 +118,16 @@ fn turn_encoder(steps: i32) {
         let degrees =
             angle.get() + i64::from(steps) * i64::from(controls::ENCODER_DEGREES_PER_STEP);
         angle.set(degrees);
-        let wheel: HtmlElement = el("encoder-wheel").unchecked_into();
-        let _ = wheel
-            .style()
-            .set_property("--wheel-angle", &format!("{degrees}deg"));
+        set_wheel_angle("encoder-wheel", degrees);
     });
     command("encoder", "steps", steps);
+}
+
+fn set_wheel_angle(id: &str, degrees: i64) {
+    let wheel: HtmlElement = el(id).unchecked_into();
+    let _ = wheel
+        .style()
+        .set_property("--wheel-angle", &format!("{degrees}deg"));
 }
 
 fn gain_changed() {
@@ -131,6 +135,7 @@ fn gain_changed() {
     let value = input.value_as_number();
     text("gain-value", &format!("{:.0}%", value * 100.));
     let _ = input.set_attribute("aria-valuetext", &format!("{:.0} percent", value * 100.));
+    set_wheel_angle("gain-wheel", ((value - 1.) * 150.).round() as i64);
     command("gain", "value", value);
 }
 fn bind_dial(id: &'static str, encoder: bool) {
@@ -145,19 +150,22 @@ fn bind_dial(id: &'static str, encoder: bool) {
         let target: Element = p.current_target().unwrap().unchecked_into();
         let _ = target.set_pointer_capture(p.pointer_id());
         let origin = (p.client_x(), p.client_y());
-        let turn = encoder
-            .then(|| el("encoder-wheel").get_bounding_client_rect())
-            .filter(|rect| rect.width() > 0.)
-            .map(|rect| {
-                controls::EncoderTurn::new(
-                    (
-                        rect.x() + rect.width() * 0.5,
-                        rect.y() + rect.height() * 0.5,
-                    ),
-                    rect.width() * 0.17,
-                    (f64::from(origin.0), f64::from(origin.1)),
-                )
-            });
+        let wheel = if encoder {
+            "encoder-wheel"
+        } else {
+            "gain-wheel"
+        };
+        let rect = el(wheel).get_bounding_client_rect();
+        let turn = (rect.width() > 0.).then(|| {
+            controls::EncoderTurn::new(
+                (
+                    rect.x() + rect.width() * 0.5,
+                    rect.y() + rect.height() * 0.5,
+                ),
+                rect.width() * 0.17,
+                (f64::from(origin.0), f64::from(origin.1)),
+            )
+        });
         *down.borrow_mut() = Some(DialDrag {
             pointer: p.pointer_id(),
             origin,
@@ -196,8 +204,9 @@ fn bind_dial(id: &'static str, encoder: bool) {
                     turn_encoder(steps);
                 } else {
                     let input: HtmlInputElement = el("gain").unchecked_into();
+                    let increment = if drag.turn.is_some() { 0.10 } else { 0.04 };
                     input.set_value_as_number(
-                        (input.value_as_number() + f64::from(steps) * 0.04).clamp(0., 2.),
+                        (input.value_as_number() + f64::from(steps) * increment).clamp(0., 2.),
                     );
                     gain_changed();
                 }
