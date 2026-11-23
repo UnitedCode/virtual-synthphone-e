@@ -27,7 +27,6 @@ jobs:
       changed: ${{ steps.revisions.outputs.changed }}
     env:
       RUSTUP_TOOLCHAIN: '1.97.1'
-      CARGO_TARGET_DIR: ${{ runner.temp }}/synthphone-target
       CARGO_INCREMENTAL: '0'
     steps:
       - id: revisions
@@ -72,6 +71,8 @@ jobs:
           fi
       - name: Build and verify the original ARM firmware, then package the site
         if: steps.revisions.outputs.changed == 'true'
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/synthphone-target
         run: cargo run --locked --release --manifest-path site-builder/Cargo.toml -- build-firmware hardware-firmware
       - uses: actions/upload-pages-artifact@v3
         if: steps.revisions.outputs.changed == 'true'
